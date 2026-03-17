@@ -494,7 +494,7 @@
 // ─────────────────────────────────────────
 //  CONFIG
 // ─────────────────────────────────────────
-const API_URL = 'https://script.google.com/macros/s/AKfycbx5ZvRgYliz5qB99H1BIpx0pcJSx0bRC_2n3AtdaNUB1le0unYKK3LNaJvt3Sa6Ahp7Lw/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwKvRBvWN-5yXqmOTvMVsyoOLlFelWXOsF2qBll8OBS_dkXAYz5JTYN4uzpwDRc3vRWLA/exec';
 
 let currentUser     = null;
 let currentSchedule = null;
@@ -676,8 +676,11 @@ function enforceSchedule() {
     badge.innerHTML = diffMin <= 60
       ? `<span class="badge badge-soon">🕐 Faltan ${diffMin} min</span>`
       : `<span class="badge badge-blocked">🔒 Fuera de horario</span>`;
+  } else if (now <= schedIn) {
+    badge.innerHTML = `<span class="badge badge-ok">✓ Puntual</span>`;
   } else if (now <= lateLimit) {
-    badge.innerHTML = `<span class="badge badge-ok">✓ A tiempo</span>`;
+    const minsPassed = Math.round((now - schedIn) / 60000);
+    badge.innerHTML = `<span class="badge badge-soon">🟡 En tolerancia (+${minsPassed} min)</span>`;
   } else if (now <= schedOut) {
     badge.innerHTML = `<span class="badge badge-late">⚠ Tarde</span>`;
   } else {
@@ -743,7 +746,8 @@ async function loadTodayStatus(cedula) {
       entryTimestamp = Date.now();
       startElapsed();
       hideBlockBanner();
-      if (data.late && data.lateMin > 0) showLateAlert(data.lateMin);
+      if (data.late && data.lateMin > 0) showLateAlert(data.lateMin, false);
+      else if (data.withinTolerance && data.lateMin > 0) showLateAlert(data.lateMin, true);
 
     } else if (data.status === 'out') {
       dot.className = 's-dot';
@@ -789,13 +793,32 @@ function startElapsed() {
 // ─────────────────────────────────────────
 //  LATE ALERT
 // ─────────────────────────────────────────
-function showLateAlert(lateMin) {
+function showLateAlert(lateMin, isTolerance = false) {
   const h   = Math.floor(lateMin / 60);
   const m   = lateMin % 60;
   const str = h > 0 ? `${h}h ${m}min` : `${m} minuto${m !== 1 ? 's' : ''}`;
-  document.getElementById('late-title').textContent = `Llegada tarde — ${str} de retraso`;
-  document.getElementById('late-sub').innerHTML =
-    `Tu horario de entrada era a las <strong>${currentSchedule ? currentSchedule.entrada : '--:--'}</strong>. Este retraso ha sido registrado.`;
+
+  if (isTolerance) {
+    // Dentro de tolerancia — banner verde/cyan suave
+    document.getElementById('late-title').textContent = `Entrada registrada — dentro de tolerancia (+${str})`;
+    document.getElementById('late-sub').innerHTML =
+      `Llegaste ${str} después de las <strong>${currentSchedule ? currentSchedule.entrada : '--:--'}</strong>, pero estás dentro del rango de tolerancia permitido. ✓`;
+    const banner = document.getElementById('late-banner');
+    banner.style.background   = 'rgba(0,230,118,0.08)';
+    banner.style.borderColor  = 'rgba(0,230,118,0.3)';
+    banner.querySelector('.lb-title').style.color = 'var(--success)';
+    banner.querySelector('.lb-sub').style.color   = 'rgba(0,230,118,0.7)';
+  } else {
+    // Tardanza real — banner amarillo
+    document.getElementById('late-title').textContent = `Llegada tarde — ${str} de retraso`;
+    document.getElementById('late-sub').innerHTML =
+      `Tu horario de entrada era a las <strong>${currentSchedule ? currentSchedule.entrada : '--:--'}</strong>. Este retraso ha sido registrado.`;
+    const banner = document.getElementById('late-banner');
+    banner.style.background   = 'rgba(255,171,0,0.1)';
+    banner.style.borderColor  = 'rgba(255,171,0,0.4)';
+    banner.querySelector('.lb-title').style.color = 'var(--warning)';
+    banner.querySelector('.lb-sub').style.color   = 'rgba(255,171,0,0.7)';
+  }
   document.getElementById('late-banner').style.display = 'flex';
 }
 
@@ -825,7 +848,9 @@ async function markTime(type, confirmed = false) {
     if (data.ok) {
       msg.style.display = 'none';
       if (data.late && data.lateMin > 0) {
-        showLateAlert(data.lateMin);
+        showLateAlert(data.lateMin, false);
+      } else if (data.withinTolerance && data.lateMin > 0) {
+        showLateAlert(data.lateMin, true); // dentro de tolerancia
       } else {
         toast(`${type} registrada a las ${data.time} ✓`, 'success');
       }
