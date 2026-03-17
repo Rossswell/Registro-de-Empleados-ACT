@@ -494,7 +494,7 @@
 // ─────────────────────────────────────────
 //  CONFIG
 // ─────────────────────────────────────────
-const API_URL = 'https://script.google.com/macros/s/AKfycbwKvRBvWN-5yXqmOTvMVsyoOLlFelWXOsF2qBll8OBS_dkXAYz5JTYN4uzpwDRc3vRWLA/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzsSqH1-2WuN7N3RUYcP44ibur6577KFF7Ib1TGNneE9txxxQ64YzZ0pMb8PENU4Vd_bQ/exec';
 
 let currentUser     = null;
 let currentSchedule = null;
@@ -847,15 +847,14 @@ async function markTime(type, confirmed = false) {
     const data = await api('markTime', { cedula: currentUser.cedula, type });
     if (data.ok) {
       msg.style.display = 'none';
-      if (data.late && data.lateMin > 0) {
-        showLateAlert(data.lateMin, false);
-      } else if (data.withinTolerance && data.lateMin > 0) {
-        showLateAlert(data.lateMin, true); // dentro de tolerancia
-      } else {
-        toast(`${type} registrada a las ${data.time} ✓`, 'success');
-      }
       await loadTodayStatus(currentUser.cedula);
       await loadHistory(currentUser.cedula);
+      // Mostrar modal de mensaje solo para Entrada
+      if (type === 'Entrada') {
+        showEntryMessageModal(data);
+      } else {
+        toast(`Salida registrada a las ${data.time} ✓`, 'success');
+      }
     } else {
       showMsg(msg, data.error || 'Error al registrar.', 'error');
       btn.disabled = false;
@@ -868,6 +867,146 @@ async function markTime(type, confirmed = false) {
       ? '<span class="a-icon">🟢</span><span>Registrar Entrada</span><span class="a-sub">Marca tu llegada</span>'
       : '<span class="a-icon">🔴</span><span>Registrar Salida</span><span class="a-sub">Marca tu partida</span>';
   }
+}
+
+// ─────────────────────────────────────────
+//  ENTRY MESSAGE MODAL
+// ─────────────────────────────────────────
+function showEntryMessageModal(data) {
+  const isLate     = data.late && data.lateMin > 0;
+  const isTolerance= data.withinTolerance && data.lateMin > 0;
+  const isOnTime   = !isLate && !isTolerance;
+
+  const h = Math.floor((data.lateMin || 0) / 60);
+  const m = (data.lateMin || 0) % 60;
+  const lateStr = h > 0 ? `${h}h ${m}min` : `${m} minutos`;
+
+  let headerColor, headerBg, icon, titleText, defaultMsg, showTextarea;
+
+  if (isOnTime) {
+    headerColor = 'var(--success)';
+    headerBg    = 'rgba(0,230,118,0.08)';
+    icon        = '✅';
+    titleText   = 'Entrada registrada';
+    defaultMsg  = 'Llegada a hora. Sin novedad.';
+    showTextarea= false;
+  } else if (isTolerance) {
+    headerColor = '#4fc3f7';
+    headerBg    = 'rgba(0,212,255,0.07)';
+    icon        = '🟡';
+    titleText   = `Llegada tolerada (+${lateStr})`;
+    defaultMsg  = 'Llegada a hora tolerada. Sin novedad.';
+    showTextarea= false;
+  } else {
+    headerColor = 'var(--warning)';
+    headerBg    = 'rgba(255,171,0,0.08)';
+    icon        = '⚠️';
+    titleText   = `Entrada tarde — ${lateStr} de retraso`;
+    defaultMsg  = 'Entrada tarde. Por favor detalla.';
+    showTextarea= true;
+  }
+
+  let overlay = document.getElementById('entry-msg-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'entry-msg-overlay';
+    overlay.style.cssText = `
+      position:fixed; inset:0; z-index:910;
+      background:rgba(5,8,15,0.9);
+      backdrop-filter:blur(12px);
+      display:flex; align-items:center; justify-content:center; padding:20px;
+    `;
+    document.body.appendChild(overlay);
+  }
+
+  overlay.innerHTML = `
+    <div style="
+      background:var(--surface); border:1px solid var(--border2);
+      border-radius:22px; padding:0; max-width:420px; width:100%;
+      box-shadow:0 24px 70px rgba(0,0,0,0.7); overflow:hidden;
+    ">
+      <!-- Header coloreado -->
+      <div style="background:${headerBg}; padding:26px 28px 20px; border-bottom:1px solid var(--border)">
+        <div style="font-size:2rem; margin-bottom:10px">${icon}</div>
+        <div style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:800;
+                    font-size:1.15rem; color:${headerColor}; margin-bottom:4px">
+          ${titleText}
+        </div>
+        <div style="font-size:0.82rem; color:var(--muted)">
+          Registrada a las <strong style="color:var(--text)">${data.time}</strong>
+          ${data.schedIn ? ` · Horario: <strong style="color:var(--text)">${data.schedIn}</strong>` : ''}
+        </div>
+      </div>
+
+      <!-- Cuerpo -->
+      <div style="padding:22px 28px 24px">
+        <div style="font-size:0.85rem; color:var(--muted); margin-bottom:14px; line-height:1.5">
+          ${showTextarea
+            ? `Se registró tu tardanza. Agrega una nota explicando el motivo:`
+            : `Tu registro quedó guardado con el siguiente mensaje:`
+          }
+        </div>
+
+        ${showTextarea ? `
+          <div style="font-size:0.78rem; font-weight:600; color:var(--muted);
+                      text-transform:uppercase; letter-spacing:0.07em; margin-bottom:7px">
+            Mensaje / Nota
+          </div>
+          <textarea id="entry-msg-text"
+            placeholder="Ej: Tráfico en la autopista, cita médica, etc."
+            style="width:100%; background:var(--surface2); border:1px solid var(--border2);
+                   border-radius:10px; padding:11px 14px; color:var(--text);
+                   font-family:'Nunito',sans-serif; font-size:0.9rem; resize:none;
+                   height:90px; outline:none; transition:border-color 0.2s;"
+            onfocus="this.style.borderColor='var(--accent)'"
+            onblur="this.style.borderColor='var(--border2)'"
+          ></textarea>
+          <div style="font-size:0.73rem; color:var(--muted); margin-top:5px">
+            Mensaje predeterminado si no escribes nada: <em>"${defaultMsg}"</em>
+          </div>
+        ` : `
+          <div style="background:var(--surface2); border:1px solid var(--border);
+                      border-radius:10px; padding:12px 15px;
+                      font-size:0.9rem; color:var(--text); font-style:italic">
+            "${defaultMsg}"
+          </div>
+        `}
+
+        <button
+          onclick="confirmEntryMessage('${defaultMsg}', ${showTextarea})"
+          style="width:100%; margin-top:18px; padding:13px;
+                 background:linear-gradient(135deg, var(--accent), var(--accent2));
+                 border:none; border-radius:10px; color:#fff;
+                 font-family:'Plus Jakarta Sans',sans-serif; font-weight:700;
+                 font-size:0.95rem; cursor:pointer;">
+          ${showTextarea ? 'Guardar y continuar' : 'Entendido'}
+        </button>
+      </div>
+    </div>
+  `;
+
+  overlay.style.display = 'flex';
+}
+
+async function confirmEntryMessage(defaultMsg, hasTextarea) {
+  const overlay = document.getElementById('entry-msg-overlay');
+  let mensaje = defaultMsg;
+
+  if (hasTextarea) {
+    const ta = document.getElementById('entry-msg-text');
+    const typed = (ta ? ta.value.trim() : '');
+    mensaje = typed || defaultMsg;
+  }
+
+  // Guardar en el sheet
+  try {
+    await api('saveMensaje', { cedula: currentUser.cedula, mensaje });
+  } catch(e) {
+    console.warn('No se pudo guardar el mensaje:', e);
+  }
+
+  if (overlay) overlay.style.display = 'none';
+  toast('Entrada registrada ✓', 'success');
 }
 
 // ─────────────────────────────────────────
