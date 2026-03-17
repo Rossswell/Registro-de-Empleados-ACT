@@ -511,7 +511,7 @@
 // ─────────────────────────────────────────
 //  CONFIG
 // ─────────────────────────────────────────
-const API_URL = 'https://script.google.com/macros/s/AKfycbzsSqH1-2WuN7N3RUYcP44ibur6577KFF7Ib1TGNneE9txxxQ64YzZ0pMb8PENU4Vd_bQ/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxPR5KP0Ts1WQDrIryWIUorOB2ycaGoc2zJB1ESOJzfRIUwHpVZIFSI5flCz7pJC8asAA/exec';
 
 let currentUser     = null;
 let currentSchedule = null;
@@ -861,7 +861,7 @@ function showLateAlert(lateMin, isTolerance = false) {
 // ─────────────────────────────────────────
 //  MARK TIME
 // ─────────────────────────────────────────
-async function markTime(type, confirmed = false) {
+async function markTime(type, confirmed = false, exitReason = null) {
   // Si es salida anticipada y no ha confirmado → mostrar diálogo
   if (type === 'Salida' && !confirmed && currentSchedule) {
     const now = new Date();
@@ -885,10 +885,14 @@ async function markTime(type, confirmed = false) {
       msg.style.display = 'none';
       await loadTodayStatus(currentUser.cedula);
       await loadHistory(currentUser.cedula);
-      // Mostrar modal de mensaje solo para Entrada
+      // Modal de mensaje solo para Entrada
       if (type === 'Entrada') {
         showEntryMessageModal(data);
       } else {
+        // Si hubo razón de salida anticipada, guardarla
+        if (exitReason) {
+          try { await api('saveMensaje', { cedula: currentUser.cedula, tipo: 'Salida', mensaje: exitReason }); } catch {}
+        }
         toast(`Salida registrada a las ${data.time} ✓`, 'success');
       }
     } else {
@@ -1049,7 +1053,6 @@ async function confirmEntryMessage(defaultMsg, hasTextarea) {
 //  EARLY EXIT DIALOG
 // ─────────────────────────────────────────
 function showEarlyExitDialog(diffMin) {
-  // Crear overlay si no existe
   let overlay = document.getElementById('early-exit-overlay');
   if (!overlay) {
     overlay = document.createElement('div');
@@ -1070,41 +1073,70 @@ function showEarlyExitDialog(diffMin) {
   overlay.innerHTML = `
     <div style="
       background:var(--surface); border:1px solid rgba(255,171,0,0.3);
-      border-radius:20px; padding:34px; max-width:400px; width:100%;
-      box-shadow:0 20px 60px rgba(0,0,0,0.7); position:relative;
+      border-radius:20px; padding:0; max-width:420px; width:100%;
+      box-shadow:0 20px 60px rgba(0,0,0,0.7); overflow:hidden;
     ">
-      <div style="font-size:2.5rem; text-align:center; margin-bottom:16px">⚠️</div>
-      <div style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:800; font-size:1.2rem;
-                  text-align:center; margin-bottom:10px; color:var(--warning)">
-        Salida anticipada
+      <div style="background:rgba(255,171,0,0.08); padding:24px 26px 18px; border-bottom:1px solid var(--border)">
+        <div style="font-size:2rem; margin-bottom:10px">⚠️</div>
+        <div style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:800;
+                    font-size:1.1rem; color:var(--warning); margin-bottom:4px">
+          Salida anticipada
+        </div>
+        <div style="font-size:0.82rem; color:var(--muted); line-height:1.5">
+          Tu turno termina a las <strong style="color:var(--text)">${currentSchedule.salida}</strong>.
+          Faltan <strong style="color:var(--warning)">${timeStr}</strong>.
+          Si sales ahora <strong style="color:var(--danger)">no podrás volver a registrar entrada hoy</strong>.
+        </div>
       </div>
-      <div style="font-size:0.87rem; color:var(--muted); text-align:center; line-height:1.6; margin-bottom:24px">
-        Tu turno termina a las <strong style="color:var(--text)">${currentSchedule.salida}</strong>.
-        Faltan <strong style="color:var(--warning)">${timeStr}</strong> para completar tu jornada.<br><br>
-        Si sales ahora <strong style="color:var(--danger)">no podrás volver a registrar entrada hoy</strong>.
-        ¿Estás seguro?
-      </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
-        <button onclick="closeEarlyExitDialog()"
-          style="padding:12px; border-radius:10px; border:1px solid var(--border2);
-                 background:transparent; color:var(--text); cursor:pointer;
-                 font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:0.9rem;
-                 transition:all 0.2s"
-          onmouseover="this.style.borderColor='var(--accent)'"
-          onmouseout="this.style.borderColor='var(--border2)'">
-          Cancelar
-        </button>
-        <button onclick="closeEarlyExitDialog(); markTime('Salida', true)"
-          style="padding:12px; border-radius:10px; border:none;
-                 background:linear-gradient(135deg, var(--danger), #c0304f);
-                 color:#fff; cursor:pointer;
-                 font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:0.9rem">
-          Sí, registrar salida
-        </button>
+
+      <div style="padding:20px 26px 24px">
+        <div style="font-size:0.78rem; font-weight:600; color:var(--muted);
+                    text-transform:uppercase; letter-spacing:0.07em; margin-bottom:7px">
+          Motivo de salida anticipada <span style="color:var(--danger)">*</span>
+        </div>
+        <textarea id="early-exit-reason"
+          placeholder="Ej: Cita médica, permiso del supervisor, etc."
+          style="width:100%; background:var(--surface2); border:1px solid var(--border2);
+                 border-radius:10px; padding:11px 14px; color:var(--text);
+                 font-family:'Nunito',sans-serif; font-size:0.9rem; resize:none;
+                 height:80px; outline:none; transition:border-color 0.2s;"
+          onfocus="this.style.borderColor='var(--accent)'"
+          onblur="this.style.borderColor='var(--border2)'"
+        ></textarea>
+        <div style="font-size:0.73rem; color:var(--muted); margin-top:5px">
+          Si no escribes nada se guardará: <em>"Salida anticipada."</em>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px">
+          <button onclick="closeEarlyExitDialog()"
+            style="padding:12px; border-radius:10px; border:1px solid var(--border2);
+                   background:transparent; color:var(--text); cursor:pointer;
+                   font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:0.88rem;
+                   transition:all 0.2s"
+            onmouseover="this.style.borderColor='var(--accent)'"
+            onmouseout="this.style.borderColor='var(--border2)'">
+            Cancelar
+          </button>
+          <button onclick="confirmEarlyExit()"
+            style="padding:12px; border-radius:10px; border:none;
+                   background:linear-gradient(135deg, var(--danger), #c0304f);
+                   color:#fff; cursor:pointer;
+                   font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:0.88rem">
+            Registrar salida
+          </button>
+        </div>
       </div>
     </div>
   `;
   overlay.style.display = 'flex';
+}
+
+async function confirmEarlyExit() {
+  const ta     = document.getElementById('early-exit-reason');
+  const reason = (ta ? ta.value.trim() : '') || 'Salida anticipada.';
+  closeEarlyExitDialog();
+  // Ejecutar salida con la razón guardada
+  await markTime('Salida', true, reason);
 }
 
 function closeEarlyExitDialog() {
