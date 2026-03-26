@@ -266,12 +266,15 @@
 <div id="toast"></div>
 
 <!-- ════════════════════════════════════════
-     SUPABASE CONFIG  ← EDITA AQUÍ
+     CONFIG  ← EDITA AQUÍ
      ════════════════════════════════════════ -->
 <script>
-  const SUPABASE_URL = 'https://itdppxijisjaaxwshnym.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_kP2vtxKS7W-7peFZJKfx3g_Q_AOeyBN';
-  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const SUPABASE_URL    = 'https://itdppxijisjaaxwshnym.supabase.co';
+  const SUPABASE_KEY    = 'sb_publishable_kP2vtxKS7W-7peFZJKfx3g_Q_AOeyBN';
+  const sb              = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // ← Pega aquí el URL de despliegue de tu Apps Script
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjIC5X2I6DsOx-Cqe7hIx6tXfpjLrXZ1XII5bZ4Zw6bJt0gk8IZQcirnu525IEA9m8dQ/exec';
 </script>
 
 <script>
@@ -607,6 +610,9 @@ async function markTime(tipo, confirmed = false, exitMsg = null) {
 
     if (error) throw error;
 
+    // ── Sync a Google Sheets (fire & forget — no bloquea la UI) ──
+    syncToSheets(tipo === 'entrada' ? 'Entrada' : 'Salida', currentUser.cedula);
+
     await loadTodayStatus(currentUser.id);
     await loadHistory(currentUser.id);
 
@@ -620,6 +626,13 @@ async function markTime(tipo, confirmed = false, exitMsg = null) {
     btnE.disabled = false;
     btnS.disabled = false;
   }
+}
+
+// ── Sync a Google Sheets via Apps Script ─────────────────
+function syncToSheets(type, cedula) {
+  const url = `${APPS_SCRIPT_URL}?action=markTime&type=${encodeURIComponent(type)}&cedula=${encodeURIComponent(cedula)}`;
+  fetch(url, { mode: 'no-cors' })   // no-cors: evita error CORS desde Apps Script
+    .catch(e => console.warn('Sheets sync:', e.message));
 }
 
 function showEntryModal({ estado, lateMin, time }) {
