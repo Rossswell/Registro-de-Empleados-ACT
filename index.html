@@ -260,6 +260,16 @@
     <div class="msg" id="mark-msg"></div>
     <div class="sec-title" style="margin-top:18px">Registros recientes</div>
     <div class="history-list" id="history-list"></div>
+
+    <!-- Botón de sync manual -->
+    <div style="margin-top:18px;text-align:right">
+      <button onclick="syncAllToSheets()" id="btn-sync"
+        style="background:transparent;border:1px solid var(--border2);color:var(--muted);padding:7px 16px;border-radius:8px;cursor:pointer;font-family:'Nunito',sans-serif;font-size:0.8rem;transition:all 0.2s"
+        onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+        onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--muted)'">
+        🔄 Sync Google Sheets
+      </button>
+    </div>
   </div>
 </main>
 
@@ -601,17 +611,30 @@ async function markTime(tipo, confirmed = false, exitMsg = null) {
     let ip = '—';
     try { const r = await fetch('https://api.ipify.org?format=json'); ip = (await r.json()).ip; } catch {}
 
+    const ts  = now.toISOString();
     const { error } = await sb.from('logs').insert({
       employee_id: currentUser.id,
       tipo, estado, late_min: lateMin,
       mensaje: exitMsg || null,
-      ip, timestamp: now.toISOString()
+      ip, timestamp: ts
     });
 
     if (error) throw error;
 
-    // ── Sync a Google Sheets (fire & forget — no bloquea la UI) ──
-    syncToSheets(tipo === 'entrada' ? 'Entrada' : 'Salida', currentUser.cedula);
+    // ── Sync directo a Google Sheets con todos los datos ──
+    const tzOffset = -now.getTimezoneOffset();
+    const horaLocal = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const fechaLocal = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()}`;
+    syncToSheets({
+      fecha:    fechaLocal,
+      empleado: currentUser.nombre,
+      cedula:   currentUser.cedula,
+      tipo:     tipo === 'entrada' ? 'Entrada' : 'Salida',
+      hora:     horaLocal,
+      estado:   estado,
+      minTarde: lateMin,
+      mensaje:  exitMsg || ''
+    });
 
     await loadTodayStatus(currentUser.id);
     await loadHistory(currentUser.id);
@@ -628,11 +651,65 @@ async function markTime(tipo, confirmed = false, exitMsg = null) {
   }
 }
 
-// ── Sync a Google Sheets via Apps Script ─────────────────
-function syncToSheets(type, cedula) {
-  const url = `${APPS_SCRIPT_URL}?action=markTime&type=${encodeURIComponent(type)}&cedula=${encodeURIComponent(cedula)}`;
-  fetch(url, { mode: 'no-cors' })   // no-cors: evita error CORS desde Apps Script
-    .catch(e => console.warn('Sheets sync:', e.message));
+// ── Sync en tiempo real: llama writeLog con datos completos ──
+async function syncToSheets(data) {
+  try {
+    const params = new URLSearchParams({ action: 'writeLog', ...data });
+    const url = `${APPS_SCRIPT_URL}?${params.toString()}`;
+    const res = await fetch(url);   // sin no-cors, podemos leer la respuesta
+    const json = await res.json();
+    if (!json.ok) console.warn('Sheets writeLog error:', json.error);
+    else          console.log('Sheets sync OK, fila:', json.row);
+  } catch(e) {
+    // CORS bloqueará si Apps Script no está desplegado como "Anyone"
+    // En ese caso usa el botón de Sync manual
+    console.warn('Sheets sync (CORS):', e.message);
+  }
+}
+
+// ── Sync masivo: sube todos los logs de Supabase a Sheets ──
+async function syncAllToSheets() {
+  const btn = document.getElementById('btn-sync');
+  btn.disabled = true;
+  btn.textContent = '⏳ Sincronizando...';
+  try {
+    // Traer logs del empleado actual con su nombre
+    const { data: logs } = await sb
+      .from('logs').select('*')
+      .eq('employee_id', currentUser.id)
+      .order('timestamp', { ascending: true });
+
+    if (!logs || !logs.length) { toast('No hay registros en Supabase', 'info'); return; }
+
+    // Enriquecer logs con nombre y cédula del empleado actual
+    const enriched = logs.map(r => ({
+      timestamp: r.timestamp,
+      tipo:      r.tipo,
+      estado:    r.estado || '',
+      late_min:  r.late_min || 0,
+      mensaje:   r.mensaje || '',
+      cedula:    currentUser.cedula,
+      empleado:  currentUser.nombre
+    }));
+
+    const params = new URLSearchParams({
+      action: 'syncLogs',
+      logs:   JSON.stringify(enriched)
+    });
+    const res  = await fetch(`${APPS_SCRIPT_URL}?${params.toString()}`);
+    const json = await res.json();
+
+    if (json.ok) {
+      toast(`✅ ${json.written} registros enviados a Sheets (${json.skipped} ya existían)`, 'success');
+    } else {
+      toast('Error en Sheets: ' + json.error, 'error');
+    }
+  } catch(e) {
+    toast('Error de conexión: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 Sync Google Sheets';
+  }
 }
 
 function showEntryModal({ estado, lateMin, time }) {
