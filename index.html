@@ -34,7 +34,6 @@
     .orb-1{width:600px;height:600px;background:var(--accent);top:-200px;right:-150px;}
     .orb-2{width:500px;height:500px;background:var(--accent2);bottom:-150px;left:-150px;}
 
-    /* HEADER */
     header{position:fixed;top:0;left:0;right:0;z-index:100;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;background:rgba(5,8,15,0.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
     .logo{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:1.3rem;letter-spacing:-0.03em;display:flex;align-items:center;gap:10px;}
     .logo-icon{width:30px;height:30px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;}
@@ -44,14 +43,11 @@
     .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);padding:7px 14px;border-radius:8px;cursor:pointer;font-family:'Nunito',sans-serif;font-size:0.82rem;transition:all 0.2s;}
     .btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
 
-    /* MAIN */
     main{position:relative;z-index:1;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:90px 20px 40px;}
 
-    /* CARD */
     .card{background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:38px;box-shadow:0 12px 60px rgba(0,0,0,0.6);position:relative;overflow:hidden;width:100%;}
     .card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:0.35;}
 
-    /* LOGIN */
     #view-auth{max-width:420px;}
     .brand-block{text-align:center;margin-bottom:30px;}
     .brand-block .big-icon{width:56px;height:56px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:16px;display:inline-flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px;}
@@ -72,7 +68,6 @@
     .msg.success{background:rgba(0,230,118,0.08); border:1px solid rgba(0,230,118,0.25);color:var(--success);}
     .msg.info   {background:rgba(0,212,255,0.07); border:1px solid rgba(0,212,255,0.2);  color:var(--accent);}
 
-    /* DASHBOARD */
     #view-dashboard{max-width:680px;display:none;}
     .dash-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:26px;flex-wrap:wrap;gap:14px;}
     .dash-label{font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:5px;}
@@ -280,7 +275,6 @@
 </script>
 
 <script>
-// ── Variables globales ────────────────────────────────────
 let currentUser     = null;
 let currentSchedule = null;
 let elapsedInterval = null;
@@ -290,7 +284,6 @@ let entryTimestamp  = null;
 const DAYS   = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
 const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
-// ── Reloj ─────────────────────────────────────────────────
 function updateClock() {
   const now = new Date();
   document.getElementById('clock').textContent =
@@ -302,7 +295,6 @@ const pad = n => String(n).padStart(2,'0');
 setInterval(updateClock, 1000);
 updateClock();
 
-// ── Toast ─────────────────────────────────────────────────
 function toast(msg, type='success') {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -316,7 +308,6 @@ function showMsg(el, text, type) {
   el.style.display = 'block';
 }
 
-// ── Sesión ─────────────────────────────────────────────────
 function saveSession(emp) { localStorage.setItem('fh_user', JSON.stringify(emp)); }
 function loadSession()    { try { return JSON.parse(localStorage.getItem('fh_user')); } catch { return null; } }
 
@@ -332,8 +323,9 @@ function logout() {
 }
 
 // ── Login ─────────────────────────────────────────────────
+// CORRECCIÓN: usa 'correo' (no 'email') y elimina filtro 'activo' inexistente
 async function doLogin() {
-  const correo = document.getElementById('login-correo').value.trim();
+  const correo = document.getElementById('login-correo').value.trim().toLowerCase();
   const cedula = document.getElementById('login-cedula').value.trim();
   const msg    = document.getElementById('login-msg');
   const btn    = document.getElementById('btn-login');
@@ -348,9 +340,9 @@ async function doLogin() {
     const { data, error } = await sb
       .from('employees')
       .select('*')
-      .eq('email', correo)
+      .eq('correo', correo)   // ← CORREGIDO: era 'email'
       .eq('cedula', cedula)
-      .eq('activo', true)
+      // .eq('activo', true)  // ← ELIMINADO: columna no existe en tu tabla
       .single();
 
     if (error || !data) {
@@ -373,13 +365,14 @@ async function enterDashboard(emp) {
   document.getElementById('view-auth').style.display = 'none';
   document.getElementById('view-dashboard').style.display = 'block';
 
-  const initials = emp.nombre.split(' ').concat(emp.apellido.split(' ')).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  // CORRECCIÓN: nombre completo está en un solo campo 'nombre', sin 'apellido' separado
+  const initials = emp.nombre.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
   document.getElementById('avatar-initials').textContent = initials;
-  document.getElementById('header-name').textContent = emp.nombre;
-  document.getElementById('user-badge').style.display = 'flex';
-  document.getElementById('btn-logout').style.display = '';
-  document.getElementById('dash-name').textContent = emp.nombre;
-  document.getElementById('dash-cedula').textContent = 'Cédula: ' + emp.cedula;
+  document.getElementById('header-name').textContent     = emp.nombre;
+  document.getElementById('user-badge').style.display    = 'flex';
+  document.getElementById('btn-logout').style.display    = '';
+  document.getElementById('dash-name').textContent       = emp.nombre.split(' ')[0]; // primer nombre
+  document.getElementById('dash-cedula').textContent     = 'Cédula: ' + emp.cedula;
 
   const actionsWrap = document.getElementById('actions-wrap');
   actionsWrap.style.opacity = '0';
@@ -400,7 +393,6 @@ async function enterDashboard(emp) {
   }
 }
 
-// ── Horario ───────────────────────────────────────────────
 async function loadSchedule(empId) {
   const { data } = await sb
     .from('schedules')
@@ -421,7 +413,6 @@ async function loadSchedule(empId) {
   }
 }
 
-// ── Bloqueo por horario ───────────────────────────────────
 function enforceSchedule() {
   if (!currentSchedule) return;
   const now   = new Date();
@@ -481,7 +472,6 @@ function hideBlockBanner() {
   document.getElementById('block-banner').style.display = 'none';
 }
 
-// ── Estado de hoy ─────────────────────────────────────────
 async function loadTodayStatus(empId) {
   const today = new Date().toISOString().slice(0,10);
 
@@ -554,8 +544,7 @@ function showLateAlert(lateMin, isTolerance) {
   const banner = document.getElementById('late-banner');
   if (isTolerance) {
     document.getElementById('late-title').textContent = `Entrada dentro de tolerancia (+${str})`;
-    document.getElementById('late-sub').innerHTML =
-      `Llegaste ${str} después, pero dentro del rango permitido. ✓`;
+    document.getElementById('late-sub').innerHTML = `Llegaste ${str} después, pero dentro del rango permitido. ✓`;
     banner.style.background  = 'rgba(0,230,118,0.08)';
     banner.style.borderColor = 'rgba(0,230,118,0.3)';
     banner.querySelector('.lb-title').style.color = 'var(--success)';
@@ -572,17 +561,12 @@ function showLateAlert(lateMin, isTolerance) {
   banner.style.display = 'flex';
 }
 
-// ── Fichar ────────────────────────────────────────────────
 async function markTime(tipo, confirmed = false, exitMsg = null) {
-  // Salida anticipada → confirmar
   if (tipo === 'salida' && !confirmed && currentSchedule) {
     const now = new Date();
     const [hs, ms] = currentSchedule.hora_salida.split(':').map(Number);
     const schedOut = new Date(now); schedOut.setHours(hs, ms, 0, 0);
-    if (now < schedOut) {
-      showEarlyExitDialog(Math.round((schedOut - now) / 60000));
-      return;
-    }
+    if (now < schedOut) { showEarlyExitDialog(Math.round((schedOut - now) / 60000)); return; }
   }
 
   const btnE = document.getElementById('btn-entrada');
@@ -611,22 +595,14 @@ async function markTime(tipo, confirmed = false, exitMsg = null) {
       if (now < schedOut) estado = 'anticipada';
     }
 
-    // IP pública
     let ip = '—';
-    try {
-      const r = await fetch('https://api.ipify.org?format=json');
-      const j = await r.json();
-      ip = j.ip;
-    } catch {}
+    try { const r = await fetch('https://api.ipify.org?format=json'); ip = (await r.json()).ip; } catch {}
 
     const { error } = await sb.from('logs').insert({
       employee_id: currentUser.id,
-      tipo,
-      estado,
-      late_min:  lateMin,
-      mensaje:   exitMsg || null,
-      ip,
-      timestamp: now.toISOString()
+      tipo, estado, late_min: lateMin,
+      mensaje: exitMsg || null,
+      ip, timestamp: now.toISOString()
     });
 
     if (error) throw error;
@@ -646,13 +622,10 @@ async function markTime(tipo, confirmed = false, exitMsg = null) {
   }
 }
 
-// ── Modal entrada ─────────────────────────────────────────
 function showEntryModal({ estado, lateMin, time }) {
-  const isLate   = estado === 'tarde';
-  const isTol    = estado === 'tolerancia';
+  const isLate = estado === 'tarde', isTol = estado === 'tolerancia';
   const h = Math.floor(lateMin / 60), m = lateMin % 60;
-  const lateStr  = h > 0 ? `${h}h ${m}min` : `${m} min`;
-
+  const lateStr = h > 0 ? `${h}h ${m}min` : `${m} min`;
   const cfg = isLate
     ? { color:'var(--warning)', bg:'rgba(255,171,0,0.08)', icon:'⚠️',
         title:`Entrada tarde — ${lateStr} de retraso`, showTA: true,
@@ -671,9 +644,8 @@ function showEntryModal({ estado, lateMin, time }) {
     ov.style.cssText = 'position:fixed;inset:0;z-index:910;background:rgba(5,8,15,0.9);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;padding:20px;';
     document.body.appendChild(ov);
   }
-
   ov.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border2);border-radius:22px;padding:0;max-width:420px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,0.7);overflow:hidden;">
+    <div style="background:var(--surface);border:1px solid var(--border2);border-radius:22px;max-width:420px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,0.7);overflow:hidden;">
       <div style="background:${cfg.bg};padding:26px 28px 20px;border-bottom:1px solid var(--border)">
         <div style="font-size:2rem;margin-bottom:10px">${cfg.icon}</div>
         <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:1.15rem;color:${cfg.color};margin-bottom:4px">${cfg.title}</div>
@@ -703,35 +675,29 @@ async function confirmEntryModal(defaultMsg, hasTA) {
     const ta = document.getElementById('entry-note');
     const typed = ta ? ta.value.trim() : '';
     if (typed) mensaje = `${defaultMsg} ${typed}`;
-    // Guardar mensaje en el último log de entrada
     try {
       const today = new Date().toISOString().slice(0,10);
       const { data } = await sb.from('logs').select('id')
         .eq('employee_id', currentUser.id).eq('tipo','entrada')
         .gte('timestamp', today + 'T00:00:00').order('timestamp',{ascending:false}).limit(1);
-      if (data?.[0]) {
-        await sb.from('logs').update({ mensaje }).eq('id', data[0].id);
-      }
+      if (data?.[0]) await sb.from('logs').update({ mensaje }).eq('id', data[0].id);
     } catch {}
   }
   document.getElementById('entry-modal-ov').style.display = 'none';
   toast('Entrada registrada ✓', 'success');
 }
 
-// ── Salida anticipada ─────────────────────────────────────
 function showEarlyExitDialog(diffMin) {
   const h = Math.floor(diffMin/60), m = diffMin%60;
   const timeStr = h > 0 ? `${h}h ${m}min` : `${m} min`;
-
   let ov = document.getElementById('early-exit-ov');
   if (!ov) {
     ov = document.createElement('div'); ov.id = 'early-exit-ov';
     ov.style.cssText = 'position:fixed;inset:0;z-index:900;background:rgba(5,8,15,0.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;';
     document.body.appendChild(ov);
   }
-
   ov.innerHTML = `
-    <div style="background:var(--surface);border:1px solid rgba(255,171,0,0.3);border-radius:20px;padding:0;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.7);overflow:hidden;">
+    <div style="background:var(--surface);border:1px solid rgba(255,171,0,0.3);border-radius:20px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.7);overflow:hidden;">
       <div style="background:rgba(255,171,0,0.08);padding:24px 26px 18px;border-bottom:1px solid var(--border)">
         <div style="font-size:2rem;margin-bottom:10px">⚠️</div>
         <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:1.1rem;color:var(--warning);margin-bottom:4px">Salida anticipada</div>
@@ -766,12 +732,10 @@ async function confirmEarlyExit() {
   await markTime('salida', true, reason);
 }
 
-// ── Historial ─────────────────────────────────────────────
 async function loadHistory(empId) {
   const list = document.getElementById('history-list');
   const { data } = await sb
-    .from('logs')
-    .select('*')
+    .from('logs').select('*')
     .eq('employee_id', empId)
     .order('timestamp', { ascending: false })
     .limit(14);
@@ -780,7 +744,6 @@ async function loadHistory(empId) {
     list.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;text-align:center;padding:18px">Sin registros aún</div>';
     return;
   }
-
   list.innerHTML = data.map(r => {
     const dt   = new Date(r.timestamp);
     const date = `${pad(dt.getDate())}/${pad(dt.getMonth()+1)}`;
@@ -796,12 +759,10 @@ async function loadHistory(empId) {
   }).join('');
 }
 
-// ── Init ──────────────────────────────────────────────────
 async function init() {
   const saved = loadSession();
   if (saved?.id) {
-    // Verificar que sigue activo en BD
-    const { data } = await sb.from('employees').select('*').eq('id', saved.id).eq('activo', true).single();
+    const { data } = await sb.from('employees').select('*').eq('id', saved.id).single();
     if (data) { enterDashboard(data); return; }
   }
 }
@@ -814,3 +775,4 @@ init();
 </script>
 </body>
 </html>
+
