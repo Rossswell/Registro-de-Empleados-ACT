@@ -260,16 +260,6 @@
     <div class="msg" id="mark-msg"></div>
     <div class="sec-title" style="margin-top:18px">Registros recientes</div>
     <div class="history-list" id="history-list"></div>
-
-    <!-- Botón de sync manual -->
-    <div style="margin-top:18px;text-align:right">
-      <button onclick="syncAllToSheets()" id="btn-sync"
-        style="background:transparent;border:1px solid var(--border2);color:var(--muted);padding:7px 16px;border-radius:8px;cursor:pointer;font-family:'Nunito',sans-serif;font-size:0.8rem;transition:all 0.2s"
-        onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
-        onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--muted)'">
-        🔄 Sync Google Sheets
-      </button>
-    </div>
   </div>
 </main>
 
@@ -662,53 +652,8 @@ async function syncToSheets(data) {
     else          console.log('Sheets sync OK, fila:', json.row);
   } catch(e) {
     // CORS bloqueará si Apps Script no está desplegado como "Anyone"
-    // En ese caso usa el botón de Sync manual
+    // En ese caso no se podrá ver el error detallado, pero el try continúa
     console.warn('Sheets sync (CORS):', e.message);
-  }
-}
-
-// ── Sync masivo: sube todos los logs de Supabase a Sheets ──
-async function syncAllToSheets() {
-  const btn = document.getElementById('btn-sync');
-  btn.disabled = true;
-  btn.textContent = '⏳ Sincronizando...';
-  try {
-    // Traer logs del empleado actual con su nombre
-    const { data: logs } = await sb
-      .from('logs').select('*')
-      .eq('employee_id', currentUser.id)
-      .order('timestamp', { ascending: true });
-
-    if (!logs || !logs.length) { toast('No hay registros en Supabase', 'info'); return; }
-
-    // Enriquecer logs con nombre y cédula del empleado actual
-    const enriched = logs.map(r => ({
-      timestamp: r.timestamp,
-      tipo:      r.tipo,
-      estado:    r.estado || '',
-      late_min:  r.late_min || 0,
-      mensaje:   r.mensaje || '',
-      cedula:    currentUser.cedula,
-      empleado:  currentUser.nombre
-    }));
-
-    const params = new URLSearchParams({
-      action: 'syncLogs',
-      logs:   JSON.stringify(enriched)
-    });
-    const res  = await fetch(`${APPS_SCRIPT_URL}?${params.toString()}`);
-    const json = await res.json();
-
-    if (json.ok) {
-      toast(`✅ ${json.written} registros enviados a Sheets (${json.skipped} ya existían)`, 'success');
-    } else {
-      toast('Error en Sheets: ' + json.error, 'error');
-    }
-  } catch(e) {
-    toast('Error de conexión: ' + e.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '🔄 Sync Google Sheets';
   }
 }
 
