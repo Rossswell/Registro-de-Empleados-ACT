@@ -1,140 +1,812 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Flash High — Control de Asistencia</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flash High — Control de Asistencia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Supabase JS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg:       #05080f;
+      --surface:  #0c1118;
+      --surface2: #111720;
+      --surface3: #161e2a;
+      --border:   rgba(255,255,255,0.07);
+      --border2:  rgba(255,255,255,0.12);
+      --accent:   #00d4ff;
+      --accent2:  #6c4ff0;
+      --success:  #00e676;
+      --warning:  #ffab00;
+      --danger:   #ff4d6d;
+      --text:     #e4e8f0;
+      --muted:    #56617a;
+      --muted2:   #3a4255;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+    body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.025) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0;}
+    .orb{position:fixed;border-radius:50%;filter:blur(90px);opacity:0.12;pointer-events:none;z-index:0;}
+    .orb-1{width:600px;height:600px;background:var(--accent);top:-200px;right:-150px;}
+    .orb-2{width:500px;height:500px;background:var(--accent2);bottom:-150px;left:-150px;}
 
-<style>
-:root{
---bg:#05080f;--surface:#0c1118;--surface2:#111720;--surface3:#161e2a;
---border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
---accent:#00d4ff;--accent2:#6c4ff0;--success:#00e676;
---warning:#ffab00;--danger:#ff4d6d;--text:#e4e8f0;
---muted:#56617a;--muted2:#3a4255;
-}
-*{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--text);}
-</style>
+    header{position:fixed;top:0;left:0;right:0;z-index:100;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;background:rgba(5,8,15,0.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+    .logo{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:1.3rem;letter-spacing:-0.03em;display:flex;align-items:center;gap:10px;}
+    .logo-icon{width:30px;height:30px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;}
+    .logo em{color:var(--accent);font-style:normal;}
+    #user-badge{display:none;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);padding:7px 14px;border-radius:40px;font-size:0.82rem;}
+    .avatar{width:26px;height:26px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:0.7rem;color:var(--bg);}
+    .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);padding:7px 14px;border-radius:8px;cursor:pointer;font-family:'Nunito',sans-serif;font-size:0.82rem;transition:all 0.2s;}
+    .btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
+
+    main{position:relative;z-index:1;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:90px 20px 40px;}
+
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:38px;box-shadow:0 12px 60px rgba(0,0,0,0.6);position:relative;overflow:hidden;width:100%;}
+    .card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:0.35;}
+
+    #view-auth{max-width:420px;}
+    .brand-block{text-align:center;margin-bottom:30px;}
+    .brand-block .big-icon{width:56px;height:56px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:16px;display:inline-flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:14px;}
+    .brand-block h1{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:1.7rem;margin-bottom:5px;}
+    .brand-block p{color:var(--muted);font-size:0.88rem;}
+    .form-group{margin-bottom:16px;}
+    label{display:block;font-size:0.75rem;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.08em;}
+    input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 15px;color:var(--text);font-family:'Nunito',sans-serif;font-size:0.93rem;transition:border-color 0.2s;outline:none;}
+    input:focus{border-color:var(--accent);background:var(--surface3);}
+    input::placeholder{color:var(--muted2);}
+    .input-hint{font-size:0.75rem;color:var(--muted);margin-top:5px;}
+    .btn-primary{width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:10px;color:#fff;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:0.95rem;cursor:pointer;transition:opacity 0.2s,transform 0.1s;margin-top:6px;}
+    .btn-primary:hover{opacity:0.9;}
+    .btn-primary:active{transform:scale(0.99);}
+    .btn-primary:disabled{opacity:0.45;cursor:not-allowed;}
+    .msg{margin-top:12px;padding:11px 15px;border-radius:10px;font-size:0.83rem;display:none;}
+    .msg.error  {background:rgba(255,77,109,0.1); border:1px solid rgba(255,77,109,0.3); color:var(--danger);}
+    .msg.success{background:rgba(0,230,118,0.08); border:1px solid rgba(0,230,118,0.25);color:var(--success);}
+    .msg.info   {background:rgba(0,212,255,0.07); border:1px solid rgba(0,212,255,0.2);  color:var(--accent);}
+
+    #view-dashboard{max-width:680px;display:none;}
+    .dash-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:26px;flex-wrap:wrap;gap:14px;}
+    .dash-label{font-size:0.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:5px;}
+    .dash-greeting{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:1.55rem;line-height:1.15;}
+    .dash-greeting em{color:var(--accent);font-style:normal;}
+    .dash-cedula{font-size:0.78rem;color:var(--muted);margin-top:3px;}
+    .clock-block{text-align:right;}
+    .live-clock{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:1.9rem;color:var(--accent);letter-spacing:0.03em;}
+    .live-date{font-size:0.75rem;color:var(--muted);}
+
+    .sched-card{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;}
+    .sched-item .s-label{font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;}
+    .sched-item .s-val{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:1.05rem;margin-top:2px;}
+    .sched-arrow{color:var(--muted);font-size:1rem;}
+
+    .badge{font-size:0.72rem;font-weight:700;padding:4px 12px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;}
+    .badge-late    {background:rgba(255,171,0,0.14);border:1px solid rgba(255,171,0,0.4);color:var(--warning);}
+    .badge-ok      {background:rgba(0,230,118,0.1); border:1px solid rgba(0,230,118,0.3);color:var(--success);}
+    .badge-soon    {background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.2);color:var(--accent);}
+    .badge-blocked {background:rgba(255,77,109,0.1);border:1px solid rgba(255,77,109,0.3);color:var(--danger);}
+
+    .status-widget{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:16px;}
+    .s-dot{width:9px;height:9px;border-radius:50%;background:var(--muted);display:inline-block;margin-right:8px;position:relative;}
+    .s-dot.in{background:var(--success);box-shadow:0 0 0 3px rgba(0,230,118,0.2);}
+    .s-dot.in::after{content:'';position:absolute;inset:-3px;border-radius:50%;border:2px solid rgba(0,230,118,0.35);animation:ping 1.5s ease-in-out infinite;}
+    @keyframes ping{0%{transform:scale(1);opacity:1}100%{transform:scale(2);opacity:0}}
+    .s-label2{font-size:0.78rem;color:var(--muted);margin-bottom:3px;}
+    .s-val2{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:1rem;display:flex;align-items:center;}
+
+    .block-banner{background:rgba(255,77,109,0.08);border:1px solid rgba(255,77,109,0.25);border-radius:12px;padding:14px 18px;display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;font-size:0.83rem;}
+    .block-banner .bi{font-size:1.3rem;flex-shrink:0;line-height:1;}
+    .block-banner .bt{color:var(--danger);font-weight:700;margin-bottom:3px;font-family:'Plus Jakarta Sans',sans-serif;}
+    .block-banner .bs{color:rgba(255,77,109,0.7);line-height:1.5;}
+
+    .action-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;}
+    .action-btn{padding:20px;border-radius:14px;border:2px solid transparent;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:0.95rem;transition:all 0.2s;display:flex;flex-direction:column;align-items:flex-start;gap:7px;text-align:left;}
+    .action-btn .a-icon{font-size:1.6rem;line-height:1;}
+    .action-btn .a-sub{font-size:0.72rem;font-weight:500;opacity:0.55;font-family:'Nunito',sans-serif;}
+    .btn-entrada{background:rgba(0,230,118,0.07);border-color:rgba(0,230,118,0.25);color:var(--success);}
+    .btn-entrada:hover:not(:disabled){background:rgba(0,230,118,0.13);border-color:var(--success);}
+    .btn-entrada:disabled{opacity:0.28;cursor:not-allowed;}
+    .btn-salida{background:rgba(255,77,109,0.07);border-color:rgba(255,77,109,0.25);color:var(--danger);}
+    .btn-salida:hover:not(:disabled){background:rgba(255,77,109,0.13);border-color:var(--danger);}
+    .btn-salida:disabled{opacity:0.28;cursor:not-allowed;}
+
+    .sec-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:10px;}
+    .history-list{display:flex;flex-direction:column;gap:7px;max-height:200px;overflow-y:auto;}
+    .history-list::-webkit-scrollbar{width:3px;}
+    .history-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+    .h-item{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;font-size:0.82rem;}
+    .h-item .h-date{color:var(--muted);}
+    .h-type{font-weight:700;font-size:0.7rem;padding:2px 9px;border-radius:20px;}
+    .h-type.entrada{background:rgba(0,230,118,0.1);color:var(--success);}
+    .h-type.salida {background:rgba(255,77,109,0.1);color:var(--danger);}
+    .h-flag{color:var(--warning);font-size:0.7rem;margin-left:6px;}
+
+    #late-banner{background:rgba(255,171,0,0.1);border:1px solid rgba(255,171,0,0.4);border-radius:12px;padding:15px 18px;display:none;align-items:flex-start;gap:12px;margin-bottom:16px;}
+    #late-banner .lb-title{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;color:var(--warning);margin-bottom:3px;font-size:0.9rem;}
+    #late-banner .lb-sub{font-size:0.8rem;color:rgba(255,171,0,0.7);line-height:1.5;}
+
+    .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.25);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:7px;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+
+    #toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(70px);background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:12px 22px;font-size:0.85rem;z-index:999;transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1);pointer-events:none;white-space:nowrap;}
+    #toast.show{transform:translateX(-50%) translateY(0);}
+    #toast.success{border-color:rgba(0,230,118,0.4);color:var(--success);}
+    #toast.error  {border-color:rgba(255,77,109,0.4);color:var(--danger);}
+    #toast.warning{border-color:rgba(255,171,0,0.4); color:var(--warning);}
+
+    .skeleton{background:linear-gradient(90deg,var(--surface2) 25%,var(--surface3) 50%,var(--surface2) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:10px;}
+    @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+    @media(max-width:520px){
+      .action-grid{grid-template-columns:1fr;}
+      .live-clock{font-size:1.4rem;}
+      .card{padding:22px;}
+    }
+  </style>
 </head>
-
 <body>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
 
 <header>
-<div>Flash High</div>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    Flash <em>High</em>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div id="user-badge">
+      <div class="avatar" id="avatar-initials">?</div>
+      <span id="header-name">—</span>
+    </div>
+    <button class="btn-ghost" id="btn-logout" style="display:none" onclick="logout()">Cerrar sesión</button>
+  </div>
 </header>
 
 <main>
+  <!-- LOGIN -->
+  <div class="card" id="view-auth">
+    <div class="brand-block">
+      <div class="big-icon">⚡</div>
+      <h1>Flash High</h1>
+      <p>Control de asistencia — ingresa con tu correo y cédula</p>
+    </div>
+    <div class="form-group">
+      <label>Correo electrónico</label>
+      <input type="email" id="login-correo" placeholder="tucorreo@empresa.com" autocomplete="email"/>
+    </div>
+    <div class="form-group">
+      <label>Cédula (contraseña)</label>
+      <input type="password" id="login-cedula" placeholder="Tu número de cédula" autocomplete="current-password"/>
+      <div class="input-hint">Tu cédula es tu contraseña de acceso</div>
+    </div>
+    <button class="btn-primary" id="btn-login" onclick="doLogin()">Ingresar</button>
+    <div class="msg" id="login-msg"></div>
+  </div>
 
-<!-- LOGIN -->
-<div id="view-auth">
-<input id="login-correo" placeholder="correo" />
-<input id="login-cedula" placeholder="cedula" />
-<button onclick="doLogin()">Ingresar</button>
-</div>
+  <!-- DASHBOARD -->
+  <div class="card" id="view-dashboard">
+    <div class="dash-top">
+      <div>
+        <div class="dash-label">Panel de asistencia</div>
+        <div class="dash-greeting">Hola, <em id="dash-name">—</em></div>
+        <div class="dash-cedula" id="dash-cedula">Cédula: —</div>
+      </div>
+      <div class="clock-block">
+        <div class="live-clock" id="clock">--:--:--</div>
+        <div class="live-date" id="date-label">—</div>
+      </div>
+    </div>
 
-<!-- DASHBOARD -->
-<div id="view-dashboard" style="display:none;">
-<h2>Dashboard</h2>
-</div>
+    <div class="sched-card" id="sched-card">
+      <div class="sched-item">
+        <div class="s-label">Entrada programada</div>
+        <div class="s-val" id="sched-in">--:--</div>
+      </div>
+      <div class="sched-arrow">→</div>
+      <div class="sched-item">
+        <div class="s-label">Salida programada</div>
+        <div class="s-val" id="sched-out">--:--</div>
+      </div>
+      <div id="punct-badge"></div>
+    </div>
 
+    <div id="block-banner" class="block-banner" style="display:none">
+      <span class="bi">🔒</span>
+      <div>
+        <div class="bt" id="block-title">Fuera de horario</div>
+        <div class="bs" id="block-msg">—</div>
+      </div>
+    </div>
+
+    <div id="late-banner">
+      <span style="font-size:1.5rem;line-height:1">⚠️</span>
+      <div>
+        <div class="lb-title" id="late-title">Llegada tarde</div>
+        <div class="lb-sub"   id="late-sub">—</div>
+      </div>
+      <button onclick="document.getElementById('late-banner').style.display='none'"
+        style="margin-left:auto;background:transparent;border:none;color:rgba(255,171,0,0.5);cursor:pointer;font-size:1.1rem">✕</button>
+    </div>
+
+    <div class="status-widget">
+      <div>
+        <div class="s-label2">Estado actual</div>
+        <div class="s-val2"><span class="s-dot" id="s-dot"></span><span id="s-text">Sin registros hoy</span></div>
+      </div>
+      <div id="elapsed-wrap" style="display:none">
+        <div class="s-label2">Tiempo trabajado</div>
+        <div class="s-val2" id="elapsed">0h 0m</div>
+      </div>
+    </div>
+
+    <div id="actions-wrap" style="opacity:0;pointer-events:none;transition:opacity 0.3s;">
+      <div class="action-grid">
+        <button class="action-btn btn-entrada" id="btn-entrada" onclick="markTime('entrada')">
+          <span class="a-icon">🟢</span>
+          <span>Registrar Entrada</span>
+          <span class="a-sub">Marca tu llegada</span>
+        </button>
+        <button class="action-btn btn-salida" id="btn-salida" onclick="markTime('salida')" disabled>
+          <span class="a-icon">🔴</span>
+          <span>Registrar Salida</span>
+          <span class="a-sub">Marca tu partida</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="msg" id="mark-msg"></div>
+    <div class="sec-title" style="margin-top:18px">Registros recientes</div>
+    <div class="history-list" id="history-list"></div>
+  </div>
 </main>
 
-<!-- CONFIG -->
-<script>
-const SUPABASE_URL = 'https://itdppxijisjaaxwshnym.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_kP2vtxKS7W-7peFZJKfx3g_Q_AOeyBN';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+<div id="toast"></div>
 
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxulk3DlpsRbKobuHMM8EViC-pEYdoJFC-acV4KvIIhR9QqWJ30jEl7S7yXJsAzvN2NBQ/exec';
+<!-- ════════════════════════════════════════
+     CONFIG  ← EDITA AQUÍ
+     ════════════════════════════════════════ -->
+<script>
+  const SUPABASE_URL    = 'https://itdppxijisjaaxwshnym.supabase.co';
+  const SUPABASE_KEY    = 'sb_publishable_kP2vtxKS7W-7peFZJKfx3g_Q_AOeyBN';
+  const sb              = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // ← Pega aquí el URL de despliegue de tu Apps Script
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxulk3DlpsRbKobuHMM8EViC-pEYdoJFC-acV4KvIIhR9QqWJ30jEl7S7yXJsAzvN2NBQ/exec';
 </script>
 
 <script>
-let currentUser = null;
+let currentUser     = null;
+let currentSchedule = null;
+let elapsedInterval = null;
+let schedInterval   = null;
+let entryTimestamp  = null;
 
-/* ═══════════════════════════════════════
-🔐 AUTENTICADOR 5 DÍGITOS (NUEVO)
-═══════════════════════════════════════ */
+const DAYS   = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
-const AUTH_CODE_STATE = {
-  code: '',
-  lastUpdate: 0
-};
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  document.getElementById('date-label').textContent =
+    `${DAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
+}
+const pad = n => String(n).padStart(2,'0');
+setInterval(updateClock, 1000);
+updateClock();
 
-async function fetchAuthCode() {
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `show ${type}`;
+  setTimeout(() => t.className = '', 3200);
+}
+
+function showMsg(el, text, type) {
+  el.textContent = text;
+  el.className = `msg ${type}`;
+  el.style.display = 'block';
+}
+
+function saveSession(emp) { localStorage.setItem('fh_user', JSON.stringify(emp)); }
+function loadSession()    { try { return JSON.parse(localStorage.getItem('fh_user')); } catch { return null; } }
+
+function logout() {
+  localStorage.removeItem('fh_user');
+  currentUser = currentSchedule = null;
+  clearInterval(elapsedInterval);
+  clearInterval(schedInterval);
+  document.getElementById('view-auth').style.display = '';
+  document.getElementById('view-dashboard').style.display = 'none';
+  document.getElementById('user-badge').style.display = 'none';
+  document.getElementById('btn-logout').style.display = 'none';
+}
+
+// ── Login ─────────────────────────────────────────────────
+// CORRECCIÓN: usa 'correo' (no 'email') y elimina filtro 'activo' inexistente
+async function doLogin() {
+  const correo = document.getElementById('login-correo').value.trim().toLowerCase();
+  const cedula = document.getElementById('login-cedula').value.trim();
+  const msg    = document.getElementById('login-msg');
+  const btn    = document.getElementById('btn-login');
+
+  if (!correo || !cedula) return showMsg(msg, 'Ingresa tu correo y cédula.', 'error');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Verificando...';
+  msg.style.display = 'none';
+
   try {
-    const res = await fetch(`${APPS_SCRIPT_URL}?action=getCode`);
-    const data = await res.json();
+    const { data, error } = await sb
+      .from('employees')
+      .select('*')
+      .eq('correo', correo)   // ← CORREGIDO: era 'email'
+      .eq('cedula', cedula)
+      // .eq('activo', true)  // ← ELIMINADO: columna no existe en tu tabla
+      .single();
 
-    if (data?.ok) {
-      AUTH_CODE_STATE.code = String(data.code || '')
-        .replace(/\D/g,'')   // solo números
-        .slice(0,5);         // SOLO 5 DIGITOS
-
-      AUTH_CODE_STATE.lastUpdate = Date.now();
-
-      console.log('🔐 Código actualizado:', AUTH_CODE_STATE.code);
+    if (error || !data) {
+      showMsg(msg, 'Correo o cédula incorrectos.', 'error');
+    } else {
+      saveSession(data);
+      enterDashboard(data);
     }
-  } catch (e) {
-    console.warn('Error código auth:', e.message);
+  } catch(e) {
+    showMsg(msg, 'Error de conexión: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Ingresar';
   }
 }
 
-// actualizar cada 30 segundos
-setInterval(fetchAuthCode, 30000);
-fetchAuthCode();
+// ── Dashboard ─────────────────────────────────────────────
+async function enterDashboard(emp) {
+  currentUser = emp;
+  document.getElementById('view-auth').style.display = 'none';
+  document.getElementById('view-dashboard').style.display = 'block';
 
-/* ═══════════════════════════════════════ */
+  // CORRECCIÓN: nombre completo está en un solo campo 'nombre', sin 'apellido' separado
+  const initials = emp.nombre.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
+  document.getElementById('avatar-initials').textContent = initials;
+  document.getElementById('header-name').textContent     = emp.nombre;
+  document.getElementById('user-badge').style.display    = 'flex';
+  document.getElementById('btn-logout').style.display    = '';
+  document.getElementById('dash-name').textContent       = emp.nombre.split(' ')[0]; // primer nombre
+  document.getElementById('dash-cedula').textContent     = 'Cédula: ' + emp.cedula;
 
-async function doLogin(){
-  const correo = document.getElementById('login-correo').value;
-  const cedula = document.getElementById('login-cedula').value;
+  const actionsWrap = document.getElementById('actions-wrap');
+  actionsWrap.style.opacity = '0';
+  actionsWrap.style.pointerEvents = 'none';
 
+  document.getElementById('history-list').innerHTML = `
+    <div class="skeleton" style="height:40px;margin-bottom:7px"></div>
+    <div class="skeleton" style="height:40px;margin-bottom:7px;opacity:0.7"></div>
+    <div class="skeleton" style="height:40px;opacity:0.4"></div>`;
+
+  try {
+    await loadSchedule(emp.id);
+    await loadTodayStatus(emp.id);
+    await loadHistory(emp.id);
+  } finally {
+    actionsWrap.style.opacity = '1';
+    actionsWrap.style.pointerEvents = 'auto';
+  }
+}
+
+async function loadSchedule(empId) {
   const { data } = await sb
-    .from('employees')
+    .from('schedules')
     .select('*')
-    .eq('correo', correo)
-    .eq('cedula', cedula)
+    .eq('employee_id', empId)
     .single();
 
-  if(data){
-    currentUser = data;
-    document.getElementById('view-auth').style.display='none';
-    document.getElementById('view-dashboard').style.display='block';
+  if (data) {
+    currentSchedule = data;
+    document.getElementById('sched-in').textContent  = data.hora_entrada.slice(0,5);
+    document.getElementById('sched-out').textContent = data.hora_salida.slice(0,5);
+    enforceSchedule();
+    if (schedInterval) clearInterval(schedInterval);
+    schedInterval = setInterval(enforceSchedule, 20000);
+  } else {
+    document.getElementById('sched-in').textContent  = 'No asignado';
+    document.getElementById('sched-out').textContent = 'No asignado';
   }
 }
 
-/* ═══════════════════════════════════════
-SYNC A SHEETS (MODIFICADO)
-═══════════════════════════════════════ */
+function enforceSchedule() {
+  if (!currentSchedule) return;
+  const now   = new Date();
+  const badge = document.getElementById('punct-badge');
+  const btnE  = document.getElementById('btn-entrada');
 
-async function syncToSheets(data) {
+  const [hi, mi] = currentSchedule.hora_entrada.split(':').map(Number);
+  const [hs, ms] = currentSchedule.hora_salida.split(':').map(Number);
+  const schedIn  = new Date(now); schedIn.setHours(hi, mi, 0, 0);
+  const schedOut = new Date(now); schedOut.setHours(hs, ms, 0, 0);
+  const tolMs    = (currentSchedule.tolerancia_min || 10) * 60000;
+  const lateLimit = new Date(schedIn.getTime() + tolMs);
+  const openFrom  = new Date(schedIn.getTime() - 60 * 60000);
+
+  if (now < schedIn) {
+    const diff = Math.round((schedIn - now) / 60000);
+    badge.innerHTML = diff <= 60
+      ? `<span class="badge badge-soon">🕐 Faltan ${diff} min</span>`
+      : `<span class="badge badge-blocked">🔒 Fuera de horario</span>`;
+  } else if (now <= lateLimit) {
+    const p = Math.round((now - schedIn) / 60000);
+    badge.innerHTML = p === 0
+      ? `<span class="badge badge-ok">✓ Puntual</span>`
+      : `<span class="badge badge-soon">🟡 Tolerancia (+${p} min)</span>`;
+  } else if (now <= schedOut) {
+    badge.innerHTML = `<span class="badge badge-late">⚠ Tarde</span>`;
+  } else {
+    badge.innerHTML = `<span class="badge badge-blocked">🔒 Turno finalizado</span>`;
+  }
+
+  const alreadyCheckedIn = btnE.disabled;
+  if (!alreadyCheckedIn) {
+    if (now < openFrom) {
+      btnE.disabled = true;
+      const diff = Math.round((schedIn - now) / 60000);
+      showBlockBanner('🕐 Aún no es tu hora',
+        `Tu turno comienza a las <strong>${currentSchedule.hora_entrada.slice(0,5)}</strong>. Faltan <strong>${diff} min</strong>.`);
+    } else if (now > schedOut) {
+      btnE.disabled = true;
+      showBlockBanner('🔒 Turno finalizado',
+        `Tu turno terminó a las <strong>${currentSchedule.hora_salida.slice(0,5)}</strong>.`);
+    } else {
+      btnE.disabled = false;
+      hideBlockBanner();
+    }
+  } else {
+    hideBlockBanner();
+  }
+}
+
+function showBlockBanner(title, msg) {
+  document.getElementById('block-title').innerHTML = title;
+  document.getElementById('block-msg').innerHTML   = msg;
+  document.getElementById('block-banner').style.display = 'flex';
+}
+function hideBlockBanner() {
+  document.getElementById('block-banner').style.display = 'none';
+}
+
+async function loadTodayStatus(empId) {
+  const today = new Date().toISOString().slice(0,10);
+
+  const { data } = await sb
+    .from('logs')
+    .select('*')
+    .eq('employee_id', empId)
+    .gte('timestamp', today + 'T00:00:00')
+    .lte('timestamp', today + 'T23:59:59')
+    .order('timestamp', { ascending: true });
+
+  const dot  = document.getElementById('s-dot');
+  const txt  = document.getElementById('s-text');
+  const btnE = document.getElementById('btn-entrada');
+  const btnS = document.getElementById('btn-salida');
+
+  const entrada = data?.find(r => r.tipo === 'entrada');
+  const salida  = data?.find(r => r.tipo === 'salida');
+
+  if (entrada && salida) {
+    dot.className = 's-dot';
+    txt.textContent = `Entrada: ${entrada.timestamp.slice(11,16)}  →  Salida: ${salida.timestamp.slice(11,16)}`;
+    btnE.disabled = btnS.disabled = true;
+    hideBlockBanner();
+    showBlockBanner('✅ Jornada completada',
+      `Registraste tu salida a las <strong>${salida.timestamp.slice(11,16)}</strong>.`);
+    const b = document.getElementById('block-banner');
+    b.style.background  = 'rgba(0,212,255,0.06)';
+    b.style.borderColor = 'rgba(0,212,255,0.2)';
+    b.querySelector('.bt').style.color = 'var(--accent)';
+    b.querySelector('.bs').style.color = 'rgba(0,212,255,0.65)';
+
+  } else if (entrada) {
+    dot.className = 's-dot in';
+    txt.textContent = `Entrada: ${entrada.timestamp.slice(11,16)}`;
+    btnE.disabled = true;
+    btnS.disabled = false;
+    entryTimestamp = new Date(entrada.timestamp).getTime();
+    startElapsed();
+    hideBlockBanner();
+    if (entrada.estado === 'tarde' && entrada.late_min > 0)
+      showLateAlert(entrada.late_min, false);
+    else if (entrada.estado === 'tolerancia' && entrada.late_min > 0)
+      showLateAlert(entrada.late_min, true);
+
+  } else {
+    dot.className = 's-dot';
+    txt.textContent = 'Sin registros hoy';
+    enforceSchedule();
+  }
+}
+
+function startElapsed() {
+  document.getElementById('elapsed-wrap').style.display = 'block';
+  const update = () => {
+    if (!entryTimestamp) return;
+    const diff = Date.now() - entryTimestamp;
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    document.getElementById('elapsed').textContent = `${h}h ${m}m`;
+  };
+  update();
+  clearInterval(elapsedInterval);
+  elapsedInterval = setInterval(update, 30000);
+}
+
+function showLateAlert(lateMin, isTolerance) {
+  const h = Math.floor(lateMin / 60), m = lateMin % 60;
+  const str = h > 0 ? `${h}h ${m}min` : `${m} min`;
+  const banner = document.getElementById('late-banner');
+  if (isTolerance) {
+    document.getElementById('late-title').textContent = `Entrada dentro de tolerancia (+${str})`;
+    document.getElementById('late-sub').innerHTML = `Llegaste ${str} después, pero dentro del rango permitido. ✓`;
+    banner.style.background  = 'rgba(0,230,118,0.08)';
+    banner.style.borderColor = 'rgba(0,230,118,0.3)';
+    banner.querySelector('.lb-title').style.color = 'var(--success)';
+    banner.querySelector('.lb-sub').style.color   = 'rgba(0,230,118,0.7)';
+  } else {
+    document.getElementById('late-title').textContent = `Llegada tarde — ${str} de retraso`;
+    document.getElementById('late-sub').innerHTML =
+      `Tu horario era a las <strong>${currentSchedule?.hora_entrada?.slice(0,5) || '--:--'}</strong>. Retraso registrado.`;
+    banner.style.background  = 'rgba(255,171,0,0.1)';
+    banner.style.borderColor = 'rgba(255,171,0,0.4)';
+    banner.querySelector('.lb-title').style.color = 'var(--warning)';
+    banner.querySelector('.lb-sub').style.color   = 'rgba(255,171,0,0.7)';
+  }
+  banner.style.display = 'flex';
+}
+
+async function markTime(tipo, confirmed = false, exitMsg = null) {
+  if (tipo === 'salida' && !confirmed && currentSchedule) {
+    const now = new Date();
+    const [hs, ms] = currentSchedule.hora_salida.split(':').map(Number);
+    const schedOut = new Date(now); schedOut.setHours(hs, ms, 0, 0);
+    if (now < schedOut) { showEarlyExitDialog(Math.round((schedOut - now) / 60000)); return; }
+  }
+
+  const btnE = document.getElementById('btn-entrada');
+  const btnS = document.getElementById('btn-salida');
+  btnE.disabled = btnS.disabled = true;
+
   try {
-    const params = new URLSearchParams({
-      action: 'writeLog',
+    const now  = new Date();
+    let estado = tipo === 'salida' ? 'salida' : 'puntual';
+    let lateMin = 0;
 
-      // 🔐 NUEVO
-      code: AUTH_CODE_STATE.code,
+    if (tipo === 'entrada' && currentSchedule) {
+      const [hi, mi] = currentSchedule.hora_entrada.split(':').map(Number);
+      const schedIn  = new Date(now); schedIn.setHours(hi, mi, 0, 0);
+      const tolMs    = (currentSchedule.tolerancia_min || 10) * 60000;
+      const diff     = now - schedIn;
+      if (diff > 0) {
+        lateMin = Math.round(diff / 60000);
+        estado  = diff > tolMs ? 'tarde' : 'tolerancia';
+      }
+    }
 
-      ...data
+    if (tipo === 'salida') {
+      const [hs, ms] = (currentSchedule?.hora_salida || '17:00').split(':').map(Number);
+      const schedOut = new Date(now); schedOut.setHours(hs, ms, 0, 0);
+      if (now < schedOut) estado = 'anticipada';
+    }
+
+    let ip = '—';
+    try { const r = await fetch('https://api.ipify.org?format=json'); ip = (await r.json()).ip; } catch {}
+
+    const ts  = now.toISOString();
+    const { error } = await sb.from('logs').insert({
+      employee_id: currentUser.id,
+      tipo, estado, late_min: lateMin,
+      mensaje: exitMsg || null,
+      ip, timestamp: ts
     });
 
-    const url = `${APPS_SCRIPT_URL}?${params.toString()}`;
-    const res = await fetch(url);
-    const json = await res.json();
+    if (error) throw error;
 
-    if (!json.ok) console.warn(json.error);
-  } catch(e){
-    console.warn('sync error:', e.message);
+    // ── Sync directo a Google Sheets con todos los datos ──
+    const tzOffset = -now.getTimezoneOffset();
+    const horaLocal = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const fechaLocal = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()}`;
+    syncToSheets({
+      fecha:    fechaLocal,
+      empleado: currentUser.nombre,
+      cedula:   currentUser.cedula,
+      tipo:     tipo === 'entrada' ? 'Entrada' : 'Salida',
+      hora:     horaLocal,
+      estado:   estado,
+      minTarde: lateMin,
+      mensaje:  exitMsg || ''
+    });
+
+    await loadTodayStatus(currentUser.id);
+    await loadHistory(currentUser.id);
+
+    if (tipo === 'entrada') {
+      showEntryModal({ estado, lateMin, time: `${pad(now.getHours())}:${pad(now.getMinutes())}` });
+    } else {
+      toast(`Salida registrada a las ${pad(now.getHours())}:${pad(now.getMinutes())} ✓`, 'success');
+    }
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+    btnE.disabled = false;
+    btnS.disabled = false;
   }
 }
 
-</script>
+// ── Sync en tiempo real: llama writeLog con datos completos ──
+async function syncToSheets(data) {
+  try {
+    const params = new URLSearchParams({ action: 'writeLog', ...data });
+    const url = `${APPS_SCRIPT_URL}?${params.toString()}`;
+    const res = await fetch(url);   // sin no-cors, podemos leer la respuesta
+    const json = await res.json();
+    if (!json.ok) console.warn('Sheets writeLog error:', json.error);
+    else          console.log('Sheets sync OK, fila:', json.row);
+  } catch(e) {
+    // CORS bloqueará si Apps Script no está desplegado como "Anyone"
+    // En ese caso no se podrá ver el error detallado, pero el try continúa
+    console.warn('Sheets sync (CORS):', e.message);
+  }
+}
 
+function showEntryModal({ estado, lateMin, time }) {
+  const isLate = estado === 'tarde', isTol = estado === 'tolerancia';
+  const h = Math.floor(lateMin / 60), m = lateMin % 60;
+  const lateStr = h > 0 ? `${h}h ${m}min` : `${m} min`;
+  const cfg = isLate
+    ? { color:'var(--warning)', bg:'rgba(255,171,0,0.08)', icon:'⚠️',
+        title:`Entrada tarde — ${lateStr} de retraso`, showTA: true,
+        defaultMsg: 'Entrada fuera de horario / tarde.' }
+    : isTol
+    ? { color:'#4fc3f7', bg:'rgba(0,212,255,0.07)', icon:'🟡',
+        title:`Tolerancia (+${lateStr})`, showTA: false,
+        defaultMsg: 'Llegada a hora tolerada. Sin novedad.' }
+    : { color:'var(--success)', bg:'rgba(0,230,118,0.08)', icon:'✅',
+        title:'Entrada registrada', showTA: false,
+        defaultMsg: 'Llegada a hora. Sin novedad.' };
+
+  let ov = document.getElementById('entry-modal-ov');
+  if (!ov) {
+    ov = document.createElement('div'); ov.id = 'entry-modal-ov';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:910;background:rgba(5,8,15,0.9);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;padding:20px;';
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border2);border-radius:22px;max-width:420px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,0.7);overflow:hidden;">
+      <div style="background:${cfg.bg};padding:26px 28px 20px;border-bottom:1px solid var(--border)">
+        <div style="font-size:2rem;margin-bottom:10px">${cfg.icon}</div>
+        <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:1.15rem;color:${cfg.color};margin-bottom:4px">${cfg.title}</div>
+        <div style="font-size:0.82rem;color:var(--muted)">Registrada a las <strong style="color:var(--text)">${time}</strong></div>
+      </div>
+      <div style="padding:22px 28px 24px">
+        ${cfg.showTA ? `
+          <div style="font-size:0.85rem;color:var(--muted);margin-bottom:12px">Agrega una nota sobre el motivo:</div>
+          <textarea id="entry-note" placeholder="Ej: Tráfico, cita médica…"
+            style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;color:var(--text);font-family:'Nunito',sans-serif;font-size:0.9rem;resize:none;height:80px;outline:none;"></textarea>
+          <div style="font-size:0.73rem;color:var(--muted);margin-top:5px">El mensaje empezará con: <em>"${cfg.defaultMsg}"</em></div>
+        ` : `
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 15px;font-size:0.9rem;color:var(--text);font-style:italic">"${cfg.defaultMsg}"</div>
+        `}
+        <button onclick="confirmEntryModal('${cfg.defaultMsg}', ${cfg.showTA})"
+          style="width:100%;margin-top:18px;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:10px;color:#fff;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:0.95rem;cursor:pointer;">
+          ${cfg.showTA ? 'Guardar y continuar' : 'Entendido'}
+        </button>
+      </div>
+    </div>`;
+  ov.style.display = 'flex';
+}
+
+async function confirmEntryModal(defaultMsg, hasTA) {
+  let mensaje = defaultMsg;
+  if (hasTA) {
+    const ta = document.getElementById('entry-note');
+    const typed = ta ? ta.value.trim() : '';
+    if (typed) mensaje = `${defaultMsg} ${typed}`;
+    try {
+      const today = new Date().toISOString().slice(0,10);
+      const { data } = await sb.from('logs').select('id')
+        .eq('employee_id', currentUser.id).eq('tipo','entrada')
+        .gte('timestamp', today + 'T00:00:00').order('timestamp',{ascending:false}).limit(1);
+      if (data?.[0]) await sb.from('logs').update({ mensaje }).eq('id', data[0].id);
+    } catch {}
+  }
+  document.getElementById('entry-modal-ov').style.display = 'none';
+  toast('Entrada registrada ✓', 'success');
+}
+
+function showEarlyExitDialog(diffMin) {
+  const h = Math.floor(diffMin/60), m = diffMin%60;
+  const timeStr = h > 0 ? `${h}h ${m}min` : `${m} min`;
+  let ov = document.getElementById('early-exit-ov');
+  if (!ov) {
+    ov = document.createElement('div'); ov.id = 'early-exit-ov';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:900;background:rgba(5,8,15,0.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;';
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML = `
+    <div style="background:var(--surface);border:1px solid rgba(255,171,0,0.3);border-radius:20px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.7);overflow:hidden;">
+      <div style="background:rgba(255,171,0,0.08);padding:24px 26px 18px;border-bottom:1px solid var(--border)">
+        <div style="font-size:2rem;margin-bottom:10px">⚠️</div>
+        <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:1.1rem;color:var(--warning);margin-bottom:4px">Salida anticipada</div>
+        <div style="font-size:0.82rem;color:var(--muted);line-height:1.5">
+          Tu turno termina a las <strong style="color:var(--text)">${currentSchedule.hora_salida.slice(0,5)}</strong>.
+          Faltan <strong style="color:var(--warning)">${timeStr}</strong>.
+        </div>
+      </div>
+      <div style="padding:20px 26px 24px">
+        <div style="font-size:0.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:7px">Motivo <span style="color:var(--danger)">*</span></div>
+        <textarea id="early-reason" placeholder="Ej: Cita médica, permiso del supervisor…"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;color:var(--text);font-family:'Nunito',sans-serif;font-size:0.9rem;resize:none;height:80px;outline:none;"></textarea>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px">
+          <button onclick="document.getElementById('early-exit-ov').style.display='none'"
+            style="padding:12px;border-radius:10px;border:1px solid var(--border2);background:transparent;color:var(--text);cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:0.88rem;">
+            Cancelar
+          </button>
+          <button onclick="confirmEarlyExit()"
+            style="padding:12px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--danger),#c0304f);color:#fff;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:0.88rem;">
+            Registrar salida
+          </button>
+        </div>
+      </div>
+    </div>`;
+  ov.style.display = 'flex';
+}
+
+async function confirmEarlyExit() {
+  const ta = document.getElementById('early-reason');
+  const reason = `Salida anticipada. ${(ta?.value.trim() || '')}`.trim();
+  document.getElementById('early-exit-ov').style.display = 'none';
+  await markTime('salida', true, reason);
+}
+
+async function loadHistory(empId) {
+  const list = document.getElementById('history-list');
+  const { data } = await sb
+    .from('logs').select('*')
+    .eq('employee_id', empId)
+    .order('timestamp', { ascending: false })
+    .limit(14);
+
+  if (!data || !data.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;text-align:center;padding:18px">Sin registros aún</div>';
+    return;
+  }
+  list.innerHTML = data.map(r => {
+    const dt   = new Date(r.timestamp);
+    const date = `${pad(dt.getDate())}/${pad(dt.getMonth()+1)}`;
+    const time = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    return `
+      <div class="h-item">
+        <span class="h-date">${date} &nbsp; ${time}</span>
+        <div style="display:flex;align-items:center">
+          <span class="h-type ${r.tipo}">${r.tipo.toUpperCase()}</span>
+          ${r.late_min > 0 ? `<span class="h-flag">⚠ +${r.late_min}min</span>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function init() {
+  const saved = loadSession();
+  if (saved?.id) {
+    const { data } = await sb.from('employees').select('*').eq('id', saved.id).single();
+    if (data) { enterDashboard(data); return; }
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('view-auth').style.display !== 'none') doLogin();
+});
+
+init();
+</script>
 </body>
 </html>
