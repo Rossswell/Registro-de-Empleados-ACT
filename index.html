@@ -186,6 +186,30 @@
     <div class="msg" id="login-msg"></div>
   </div>
 
+  <!-- CÓDIGO DE AUTENTICACIÓN -->
+  <div class="card" id="view-auth-code" style="max-width:420px;display:none;">
+    <div class="brand-block">
+      <div class="big-icon">🔐</div>
+      <h1>Código de Autenticación</h1>
+      <p id="auth-code-subtitle">—</p>
+    </div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:20px;text-align:center;">
+      <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">El código se renueva cada minuto</div>
+      <div id="auth-code-display" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:1.8rem;color:var(--accent);letter-spacing:0.1em;">——</div>
+      <div style="font-size:0.7rem;color:var(--muted);margin-top:6px;font-style:italic;">Visualización en tiempo real</div>
+    </div>
+    <div class="form-group">
+      <label>Ingresa el código</label>
+      <input type="text" id="auth-code-input" placeholder="0000" maxlength="6" autocomplete="off" style="text-align:center;font-size:1.3rem;font-weight:700;letter-spacing:0.15em;" />
+      <div class="input-hint">Copia el código mostrado arriba</div>
+    </div>
+    <button class="btn-primary" id="btn-validate-code" onclick="validateAuthCode()">Verificar código</button>
+    <div class="msg" id="auth-code-msg"></div>
+    <div style="text-align:center;margin-top:16px;font-size:0.78rem;">
+      <button onclick="logout()" style="background:transparent;border:none;color:var(--muted);cursor:pointer;text-decoration:underline;">← Volver atrás</button>
+    </div>
+  </div>
+
   <!-- DASHBOARD -->
   <div class="card" id="view-dashboard">
     <div class="dash-top">
@@ -274,7 +298,7 @@
   const sb              = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   // ← Pega aquí el URL de despliegue de tu Apps Script
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxulk3DlpsRbKobuHMM8EViC-pEYdoJFC-acV4KvIIhR9QqWJ30jEl7S7yXJsAzvN2NBQ/exec';
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxdZs3gFMEtyGO5a6jW--XjoizybQCm8LB5IMI1KJ9IVvfX1MaUZKU1VydLujjYOD-ZJw/exec';
 </script>
 
 <script>
@@ -319,7 +343,9 @@ function logout() {
   currentUser = currentSchedule = null;
   clearInterval(elapsedInterval);
   clearInterval(schedInterval);
+  if (window.codeRefreshInterval) clearInterval(window.codeRefreshInterval);
   document.getElementById('view-auth').style.display = '';
+  document.getElementById('view-auth-code').style.display = 'none';
   document.getElementById('view-dashboard').style.display = 'none';
   document.getElementById('user-badge').style.display = 'none';
   document.getElementById('btn-logout').style.display = 'none';
@@ -352,13 +378,98 @@ async function doLogin() {
       showMsg(msg, 'Correo o cédula incorrectos.', 'error');
     } else {
       saveSession(data);
-      enterDashboard(data);
+      goToAuthCodeScreen(data);
     }
   } catch(e) {
     showMsg(msg, 'Error de conexión: ' + e.message, 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Ingresar';
+  }
+}
+
+// ── Pantalla de Código de Autenticación ─────────────────
+async function goToAuthCodeScreen(emp) {
+  currentUser = emp;
+  document.getElementById('view-auth').style.display = 'none';
+  document.getElementById('view-auth-code').style.display = 'block';
+  
+  // Mostrar el nombre y cédula del usuario en la subtitle
+  document.getElementById('auth-code-subtitle').textContent = 
+    `Hola ${emp.nombre.split(' ')[0]}, ingresa el código para continuar`;
+  
+  // Limpiar inputs previos
+  document.getElementById('auth-code-input').value = '';
+  document.getElementById('auth-code-msg').style.display = 'none';
+  
+  // Cargar y mostrar el código en tiempo real
+  loadAndDisplayCode();
+  
+  // Recargar el código cada minuto
+  if (window.codeRefreshInterval) clearInterval(window.codeRefreshInterval);
+  window.codeRefreshInterval = setInterval(() => {
+    loadAndDisplayCode();
+  }, 60000); // cada minuto
+  
+  // Permitir validar con Enter
+  document.getElementById('auth-code-input').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') validateAuthCode();
+  });
+}
+
+async function loadAndDisplayCode() {
+  try {
+    const params = new URLSearchParams({ action: 'getCode' });
+    const response = await fetch(`${APPS_SCRIPT_URL}?${params.toString()}`);
+    const json = await response.json();
+    
+    if (json.ok && json.code) {
+      document.getElementById('auth-code-display').textContent = String(json.code).padStart(6, '0');
+    }
+  } catch(e) {
+    console.warn('Error loading code:', e.message);
+    document.getElementById('auth-code-display').textContent = 'ERROR';
+  }
+}
+
+async function validateAuthCode() {
+  const inputCode = document.getElementById('auth-code-input').value.trim();
+  const msg = document.getElementById('auth-code-msg');
+  const btn = document.getElementById('btn-validate-code');
+  
+  if (!inputCode || inputCode.length < 4) {
+    return showMsg(msg, 'Ingresa un código válido.', 'error');
+  }
+  
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Verificando...';
+  msg.style.display = 'none';
+  
+  try {
+    const params = new URLSearchParams({ 
+      action: 'validateCode',
+      code: inputCode 
+    });
+    const response = await fetch(`${APPS_SCRIPT_URL}?${params.toString()}`);
+    const json = await response.json();
+    
+    if (json.ok && json.valid) {
+      showMsg(msg, '✓ Código correcto', 'success');
+      if (window.codeRefreshInterval) clearInterval(window.codeRefreshInterval);
+      setTimeout(() => {
+        document.getElementById('view-auth-code').style.display = 'none';
+        enterDashboard(currentUser);
+      }, 500);
+    } else {
+      showMsg(msg, 'Código incorrecto. Intenta de nuevo.', 'error');
+      document.getElementById('auth-code-input').value = '';
+      document.getElementById('auth-code-input').focus();
+    }
+  } catch(e) {
+    showMsg(msg, 'Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Verificar código';
   }
 }
 
