@@ -187,22 +187,37 @@
   </div>
 
   <!-- CÓDIGO DE AUTENTICACIÓN -->
-  <div class="card" id="view-auth-code" style="max-width:420px;display:none;">
+  <div class="card" id="view-auth-code" style="max-width:480px;display:none;">
     <div class="brand-block">
       <div class="big-icon">🔐</div>
       <h1>Código de Autenticación</h1>
       <p id="auth-code-subtitle">—</p>
     </div>
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:20px;text-align:center;">
-      <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">El código se renueva cada minuto</div>
-      <div id="auth-code-display" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:1.8rem;color:var(--accent);letter-spacing:0.1em;">——</div>
-      <div style="font-size:0.7rem;color:var(--muted);margin-top:6px;font-style:italic;">Visualización en tiempo real</div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px;text-align:center;">
+      <div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">El código está en Google Sheets</div>
+      <div style="font-size:0.82rem;color:var(--accent);line-height:1.6;">Abre Google Sheets para ver el código que se renueva cada minuto en la celda <strong>S2</strong> de la hoja <strong>⌛HORARIOS</strong>.</div>
     </div>
-    <div class="form-group">
-      <label>Ingresa el código</label>
-      <input type="text" id="auth-code-input" placeholder="0000" maxlength="6" autocomplete="off" style="text-align:center;font-size:1.3rem;font-weight:700;letter-spacing:0.15em;" />
-      <div class="input-hint">Copia el código mostrado arriba</div>
+    
+    <div style="display:grid;grid-template-columns:1fr auto;gap:14px;align-items:flex-end;margin-bottom:20px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Ingresa el código</label>
+        <input type="text" id="auth-code-input" placeholder="000000" maxlength="6" autocomplete="off" style="text-align:center;font-size:1.2rem;font-weight:700;letter-spacing:0.2em;" />
+        <div class="input-hint" style="margin-top:5px;">Copia desde Google Sheets</div>
+      </div>
+      
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+        <div style="position:relative;width:70px;height:70px;display:flex;align-items:center;justify-content:center;">
+          <div style="position:absolute;inset:0;border:3px solid rgba(0,212,255,0.2);border-radius:50%;"></div>
+          <div id="timer-circle" style="position:absolute;inset:0;border:3px solid var(--accent);border-radius:50%;background:conic-gradient(var(--accent) 0deg, rgba(0,212,255,0.1) 0deg);transform:rotate(-90deg);transition:all 0.3s ease;"></div>
+          <div style="position:relative;z-index:1;text-align:center;">
+            <div id="timer-seconds" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:1.6rem;color:var(--accent);">60</div>
+            <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">seg</div>
+          </div>
+        </div>
+        <div style="font-size:0.7rem;color:var(--muted);text-align:center;">Tiempo<br>restante</div>
+      </div>
     </div>
+    
     <button class="btn-primary" id="btn-validate-code" onclick="validateAuthCode()">Verificar código</button>
     <div class="msg" id="auth-code-msg"></div>
     <div style="text-align:center;margin-top:16px;font-size:0.78rem;">
@@ -344,6 +359,7 @@ function logout() {
   clearInterval(elapsedInterval);
   clearInterval(schedInterval);
   if (window.codeRefreshInterval) clearInterval(window.codeRefreshInterval);
+  if (window.authCodeTimerInterval) clearInterval(window.authCodeTimerInterval);
   document.getElementById('view-auth').style.display = '';
   document.getElementById('view-auth-code').style.display = 'none';
   document.getElementById('view-dashboard').style.display = 'none';
@@ -402,19 +418,41 @@ async function goToAuthCodeScreen(emp) {
   document.getElementById('auth-code-input').value = '';
   document.getElementById('auth-code-msg').style.display = 'none';
   
-  // Cargar y mostrar el código en tiempo real
-  loadAndDisplayCode();
-  
-  // Recargar el código cada minuto
-  if (window.codeRefreshInterval) clearInterval(window.codeRefreshInterval);
-  window.codeRefreshInterval = setInterval(() => {
-    loadAndDisplayCode();
-  }, 60000); // cada minuto
+  // Iniciar temporizador
+  startAuthCodeTimer();
   
   // Permitir validar con Enter
   document.getElementById('auth-code-input').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') validateAuthCode();
   });
+}
+
+function startAuthCodeTimer() {
+  let timeLeft = 60;
+  
+  const updateDisplay = () => {
+    document.getElementById('timer-seconds').textContent = timeLeft;
+    const percentage = (timeLeft / 60) * 100;
+    const degrees = (percentage / 100) * 360;
+    document.getElementById('timer-circle').style.background = 
+      `conic-gradient(var(--accent) 0deg, var(--accent) ${degrees}deg, rgba(0,212,255,0.1) ${degrees}deg, rgba(0,212,255,0.1) 360deg)`;
+  };
+  
+  updateDisplay();
+  
+  // Limpiar intervalo previo si existe
+  if (window.authCodeTimerInterval) clearInterval(window.authCodeTimerInterval);
+  
+  window.authCodeTimerInterval = setInterval(() => {
+    timeLeft--;
+    updateDisplay();
+    
+    if (timeLeft <= 0) {
+      // Reiniciar el ciclo
+      timeLeft = 60;
+      updateDisplay();
+    }
+  }, 1000);
 }
 
 async function loadAndDisplayCode() {
@@ -424,12 +462,13 @@ async function loadAndDisplayCode() {
     const json = await response.json();
     
     if (json.ok && json.code) {
-      document.getElementById('auth-code-display').textContent = String(json.code).padStart(6, '0');
+      // El código ahora solo se usa para validación, no se muestra en pantalla
+      return String(json.code).padStart(6, '0');
     }
   } catch(e) {
     console.warn('Error loading code:', e.message);
-    document.getElementById('auth-code-display').textContent = 'ERROR';
   }
+  return null;
 }
 
 async function validateAuthCode() {
@@ -455,6 +494,7 @@ async function validateAuthCode() {
     
     if (json.ok && json.valid) {
       showMsg(msg, '✓ Código correcto', 'success');
+      if (window.authCodeTimerInterval) clearInterval(window.authCodeTimerInterval);
       if (window.codeRefreshInterval) clearInterval(window.codeRefreshInterval);
       setTimeout(() => {
         document.getElementById('view-auth-code').style.display = 'none';
