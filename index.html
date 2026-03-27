@@ -906,11 +906,20 @@ async function loadHistory(empId) {
 }
 
 async function init() {
-  const saved = loadSession();
-  if (saved?.id) {
-    const { data } = await sb.from('employees').select('*').eq('id', saved.id).single();
-    if (data) { enterDashboard(data); return; }
-  }
+  // Limpiar sesión guardada en cada carga - siempre pedir login + código
+  localStorage.removeItem('fh_user');
+  
+  // Limpiar campos de login
+  document.getElementById('login-correo').value = '';
+  document.getElementById('login-cedula').value = '';
+  document.getElementById('login-msg').style.display = 'none';
+  
+  // Mostrar pantalla de login
+  document.getElementById('view-auth').style.display = '';
+  document.getElementById('view-auth-code').style.display = 'none';
+  document.getElementById('view-dashboard').style.display = 'none';
+  document.getElementById('user-badge').style.display = 'none';
+  document.getElementById('btn-logout').style.display = 'none';
 }
 
 document.addEventListener('keydown', e => {
