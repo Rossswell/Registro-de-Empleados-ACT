@@ -312,8 +312,18 @@
   const SUPABASE_KEY    = 'sb_publishable_kP2vtxKS7W-7peFZJKfx3g_Q_AOeyBN';
   const sb              = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  // ← Pega aquí el URL de despliegue de tu Apps Script
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz5eLXaLDeO4ElSxjtyEmU2g21sf6KHqChjfNajftY2kMgsInS-PhP7f2D6Q0jkmOmOlA/exec';
+  // Google Sheets config
+  const SPREADSHEET_ID  = '1O35ZWq2yEAW-5FOJsby2Kszo6WP3_0nqVGp4yd0q4Lk';
+  const SHEET_NAME      = '⌛HORARIOS';
+
+  // Google Service Account credentials
+  const GOOGLE_CREDENTIALS = {
+    client_email: "flashhigh@flash-high-490814.iam.gserviceaccount.com",
+    private_key: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDD4BVU8p5LDyv8\nQ9wdDD6XAiSg02aRl3EtRA3xg+z4M0Q9dH18ROgVd1fXFIZboMK9Lhhszzdx09PO\n4gnN6FyKBWNVatM+qIL6c1ofwSg+bqFYj3fPjzNy4m6+8shL+lzdbGVTnINKrHeP\npry59lTgeWFlYIMjhI4GtCgdOQFL9WEULYiKiaZ0mSQaVYhoAyq8gKoUTfhaft4q\n9KOIswhmuf5vyvkZFYqUvwSXvJ5KgO1cheQmxDPHkRVAjAz6LbSz1I/TalZZd/kf\nSN7KLAvYNDoPNRJYhFy661UzPmIm4dZLkxpX5OgCHwFjpsRyiaMWwGBBYM8NUNaZ\nQhS1LaQBAgMBAAECggEAAUi/0GMYJz/TNv/Zj+sw9zEmvP3bJ0s0jRUWzlA3cS0i\nM7ucHat0phIL5mIWZhVjZsrIPYu3k6x4MAa1Wmnn6WkS91AQUHyEV1Ctn5WsRjSC\nzvTUgUIxa9MQ4iRErJLYoa8AlGVrSvBfMaGTN9jl7OQpf6OmrciZscY5Q8Udkro8\ngYHEKIaNuAIMz6Bjj0g+BUNhU6haoL2cvakT2yqjLrgKxSTNLhFXG7DcsJ5RPBWv\nBln0LogHKldyiQ0dv88R3SgYU6wnGP690+LpFJtoVkKVXQFDkRaJXoGuIqor2zOv\nHeGpvMp+/q+DNYqMBnfa6CaLrJxn5//qSY9Q8JrVAQKBgQDs125L5MArsdb9a2zt\nEqt+ObjzR1ShgwJuzvrHn42NQJNtL4k5niFLEW8bJ/nyN4zZ/8EzIgNpNdpRv+Pu\nEMzUiYftX2uA4Txf2H6evPo60boMphz8aDDoYqlPCeX18D7ywoMDCQGzBCIKgJ2+\nQoINKMYlXoUPyg1JRnULRbzZ0QKBgQDTuFCdl0MT8lzFwkCtAaZWz2akgbHe1CpS\ny+XjtZzVGkybROGhK/9D3RlEggcUTMuxoObuS+1Cs+fkX0zhyU/9n00kFMb28hKX\n6M7We7l/AF4zN3d41Q5EQclJrgdH2F/32mxFgshTElcxcWF2Y7ziySoypm9mC/W6\nH5lNAfKDMQKBgE9NcykGVzJKQepo5fgboECLo1oSMExESbRAqcfdrM/3J2YP3Krm\nP8+a7tDw+cgYwZjdAhvU779ywL9OuUslZPBlfJYGtUBaKpUNMJiGPmMjhmBl3p7F\nZFrrbjWA4vcOkoVGjAegJGmEoMFTf34NVu6BEJfCpls7FGfMp7Q2jZ2BAoGBAJ9Q\na4EaSIRi9IJvGMHWovdh26fgXBsD5dEl0xhVGe2Ve52+6FWiSNQlNJVDjtYsr347\nSGp6Qc/WlqFXQQAJvyJm0+JZrBo4r9sVeUcWFNBHU5sQmtsW30RniHLj/GCIpjZY\nau6nadxwyaHP4nn2tTSmERXJ/bt5Nm/WxUGYPIeRAoGAQB9mwsXqxo4EitQAN+6o\nivhHgfWIij5l1m2ANxBT40RfIoRtep48I80GTec7eC5z4BFY2a8MitILdIzgmsC6\nCoariW9Av63VcH6MTaT3knWaJyOkpNUkg0nX8t1GwOyHKmXezNtj8aIVZ5id8rAF\nhX9Ps7/tDTeenaiafHC5unI=\n-----END PRIVATE KEY-----\n"
+  };
+
+  // ← Pega aquí el URL de despliegue de tu Apps Script (respaldo)
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxulk3DlpsRbKobuHMM8EViC-pEYdoJFC-acV4KvIIhR9QqWJ30jEl7S7yXJsAzvN2NBQ/exec';
 </script>
 
 <script>
@@ -793,23 +803,146 @@ async function markTime(tipo, confirmed = false, exitMsg = null) {
   }
 }
 
-// ── Sync en tiempo real: llama writeLog con datos completos ──
+// ════════════════════════════════════════
+//  GOOGLE TOKEN (JWT service account)
+// ════════════════════════════════════════
+let _tok = null, _tokExp = 0;
+async function getGoogleToken() {
+  if (_tok && Date.now() < _tokExp - 60000) return _tok;
+  try {
+    const { client_email, private_key } = GOOGLE_CREDENTIALS;
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+      iss: client_email,
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      aud: 'https://oauth2.googleapis.com/token',
+      exp: now + 3600,
+      iat: now
+    };
+    const jwt = await makeJWT(payload, private_key);
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
+    });
+    const data = await res.json();
+    if (data.access_token) {
+      _tok = data.access_token;
+      _tokExp = Date.now() + data.expires_in * 1000;
+      return _tok;
+    }
+    throw new Error(data.error_description || 'Token error');
+  } catch(e) {
+    console.warn('Google token:', e.message);
+    return null;
+  }
+}
+
+async function makeJWT(payload, pemKey) {
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const b64 = o => btoa(JSON.stringify(o)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  const signing = `${b64(header)}.${b64(payload)}`;
+  const pem = pemKey.replace(/-----[^-]+-----/g, '').replace(/\s/g, '');
+  const keyData = Uint8Array.from(atob(pem), c => c.charCodeAt(0));
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8', keyData.buffer, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sigBuf = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, new TextEncoder().encode(signing));
+  const sig = btoa(String.fromCharCode(...new Uint8Array(sigBuf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  return `${signing}.${sig}`;
+}
+
+// ════════════════════════════════════════
+//  SYNC TO GOOGLE SHEETS - DIRECT API
+//  Escribe en la columna H (Fecha) en adelante
+// ════════════════════════════════════════
 async function syncToSheets(data) {
   try {
-    // Usar POST para evitar problemas con caracteres especiales en URL
-    const params = new URLSearchParams({ action: 'writeLog' });
-    const url = `${APPS_SCRIPT_URL}?${params.toString()}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    const json = await res.json();
-    if (!json.ok) console.warn('Sheets writeLog error:', json.error);
-    else          console.log('Sheets sync OK, fila:', json.row);
+    const token = await getGoogleToken();
+    if (!token) {
+      console.warn('No Google token available, trying Apps Script fallback');
+      // Fallback to Apps Script
+      const params = new URLSearchParams({ action: 'writeLog' });
+      const url = `${APPS_SCRIPT_URL}?${params.toString()}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const json = await res.json();
+      if (!json.ok) console.warn('Apps Script writeLog error:', json.error);
+      else console.log('Apps Script sync OK, fila:', json.row);
+      return;
+    }
+
+    // Get current data to find next empty row
+    const rangeEnc = encodeURIComponent(`${SHEET_NAME}!H:R`);
+    const res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${rangeEnc}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    let nextRow = 2; // Start at row 2 (row 1 is header)
+    if (res.ok) {
+      const sheetData = await res.json();
+      const values = sheetData.values || [];
+      nextRow = values.length + 2; // +2 because values is 0-indexed and we start at row 2
+    }
+
+    // Prepare row data matching columns H:R
+    // Fecha, Semana, Empleado, Cedula, Area, Tipo, Hora, Tarde, Min Tarde, Mensaje / Nota
+    const now = new Date();
+    const weekNum = getISOWeek(now);
+    const tardeVal = data.estado === 'tarde' ? 'SÍ' : data.estado === 'tolerancia' ? 'TOLERANCIA' : data.estado === 'salida' || data.estado === 'anticipada' ? data.tipo.toUpperCase() : 'NO';
+
+    const rowData = [
+      data.fecha,                    // H - Fecha
+      String(weekNum),               // I - Semana
+      data.empleado,                 // J - Empleado
+      String(data.cedula),           // K - Cedula
+      data.area || '',               // L - Area
+      data.tipo.toUpperCase(),       // M - Tipo
+      data.hora,                     // N - Hora
+      tardeVal,                      // O - Tarde
+      String(data.minTarde || ''),   // P - Min Tarde
+      data.mensaje || ''             // Q - Mensaje / Nota
+    ];
+
+    // Append row using batchUpdate
+    const writeRes = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          range: `${SHEET_NAME}!H${nextRow}:R${nextRow}`,
+          values: [rowData]
+        })
+      }
+    );
+
+    if (writeRes.ok) {
+      const result = await writeRes.json();
+      console.log('Sheets sync OK, updatedRange:', result.updates?.updatedRange);
+      toast('Sincronizado con Google Sheets ✓', 'success');
+    } else {
+      const errText = await writeRes.text();
+      console.warn('Sheets write error:', writeRes.status, errText);
+    }
   } catch(e) {
     console.warn('Sheets sync error:', e.message);
   }
+}
+
+function getISOWeek(d) {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
 }
 
 function showEntryModal({ estado, lateMin, time }) {
