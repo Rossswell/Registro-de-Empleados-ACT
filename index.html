@@ -323,7 +323,7 @@
   };
 
   // ← Pega aquí el URL de despliegue de tu Apps Script (respaldo)
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwsOy--1ILfsi0eqjP1tDpbi_hNymWxxQRMSpxbyzvJMXzWcLpgtZOHM6tS0Ex1ZtFSTQ/exec';
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzSpLRJ7aU_jtYGlJtqQTZ5flKq0B7KoP7z0K9zCTK512FTqvlPd_mI7devO9dFkS-ZxQ/exec';
 </script>
 
 <script>
@@ -759,15 +759,12 @@ async function markTime(tipo, confirmed = false, exitMsg = null) {
       if (now < schedOut) estado = 'anticipada';
     }
 
-    let ip = '—';
-    try { const r = await fetch('https://api.ipify.org?format=json'); ip = (await r.json()).ip; } catch {}
-
     const ts  = now.toISOString();
     const { error } = await sb.from('logs').insert({
       employee_id: currentUser.id,
       tipo, estado, late_min: lateMin,
       mensaje: exitMsg || null,
-      ip, timestamp: ts
+      timestamp: ts
     });
 
     if (error) throw error;
