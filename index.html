@@ -313,7 +313,7 @@
   const sb              = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   // ← Pega aquí el URL de despliegue de tu Apps Script
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzj_fN0ViGYx8hOPUU5X4Ob01ImmSGZTa2ijbIaFOrD2lmzkprRD3FStp9pPBs2_ZY17A/exec';
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwNIOqpHXR3dFtt-N986KEoArhRd7dWp_19Nntr8Yyn6Lmc2w7ZB3Fh-cSXiHzN7cP4BA/exec';
 </script>
 
 <script>
@@ -770,6 +770,7 @@ async function markTime(tipo, confirmed = false, exitMsg = null) {
       fecha:    fechaLocal,
       empleado: currentUser.nombre,
       cedula:   currentUser.cedula,
+      area:     currentUser.area || '',
       tipo:     tipo === 'entrada' ? 'Entrada' : 'Salida',
       hora:     horaLocal,
       estado:   estado,
@@ -795,16 +796,19 @@ async function markTime(tipo, confirmed = false, exitMsg = null) {
 // ── Sync en tiempo real: llama writeLog con datos completos ──
 async function syncToSheets(data) {
   try {
-    const params = new URLSearchParams({ action: 'writeLog', ...data });
+    // Usar POST para evitar problemas con caracteres especiales en URL
+    const params = new URLSearchParams({ action: 'writeLog' });
     const url = `${APPS_SCRIPT_URL}?${params.toString()}`;
-    const res = await fetch(url);   // sin no-cors, podemos leer la respuesta
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
     const json = await res.json();
     if (!json.ok) console.warn('Sheets writeLog error:', json.error);
     else          console.log('Sheets sync OK, fila:', json.row);
   } catch(e) {
-    // CORS bloqueará si Apps Script no está desplegado como "Anyone"
-    // En ese caso no se podrá ver el error detallado, pero el try continúa
-    console.warn('Sheets sync (CORS):', e.message);
+    console.warn('Sheets sync error:', e.message);
   }
 }
 
