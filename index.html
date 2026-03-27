@@ -2,229 +2,138 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>FLASH HIGH LOGIN</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Flash High — Control de Asistencia</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-  body{
-    font-family: Arial, sans-serif;
-    background:#0b1220;
-    color:white;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    height:100vh;
-  }
-
-  .box{
-    background:#111a2e;
-    padding:30px;
-    border-radius:15px;
-    width:320px;
-    text-align:center;
-    border:1px solid #223;
-  }
-
-  input{
-    width:100%;
-    padding:10px;
-    margin:8px 0;
-    border-radius:8px;
-    border:none;
-    outline:none;
-  }
-
-  button{
-    width:100%;
-    padding:10px;
-    border:none;
-    border-radius:8px;
-    background:#3b82f6;
-    color:white;
-    cursor:pointer;
-    margin-top:10px;
-  }
-
-  button:disabled{
-    opacity:0.6;
-  }
-
-  .msg{
-    margin-top:10px;
-    font-size:0.9rem;
-    color:#ff6b6b;
-  }
-
-  /* MODAL */
-  #code-ov{
-    position:fixed;
-    inset:0;
-    background:rgba(0,0,0,0.85);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    z-index:999;
-  }
-
-  #code-box{
-    background:#111a2e;
-    padding:25px;
-    border-radius:15px;
-    width:300px;
-    text-align:center;
-    border:1px solid #223;
-  }
-
-  #code-input{
-    font-size:20px;
-    text-align:center;
-    letter-spacing:8px;
-  }
+:root{
+--bg:#05080f;--surface:#0c1118;--surface2:#111720;--surface3:#161e2a;
+--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+--accent:#00d4ff;--accent2:#6c4ff0;--success:#00e676;
+--warning:#ffab00;--danger:#ff4d6d;--text:#e4e8f0;
+--muted:#56617a;--muted2:#3a4255;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--text);}
 </style>
 </head>
 
 <body>
 
-<div class="box">
-  <h2>LOGIN</h2>
+<header>
+<div>Flash High</div>
+</header>
 
-  <input id="login-correo" placeholder="Correo"/>
-  <input id="login-cedula" placeholder="Cédula"/>
+<main>
 
-  <button id="btn-login" onclick="doLogin()">Ingresar</button>
-
-  <div class="msg" id="login-msg"></div>
+<!-- LOGIN -->
+<div id="view-auth">
+<input id="login-correo" placeholder="correo" />
+<input id="login-cedula" placeholder="cedula" />
+<button onclick="doLogin()">Ingresar</button>
 </div>
 
+<!-- DASHBOARD -->
+<div id="view-dashboard" style="display:none;">
+<h2>Dashboard</h2>
+</div>
+
+</main>
+
+<!-- CONFIG -->
 <script>
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbymI9DRdt-KKSBuwbHt-1sch5nIk97Q2lugQK05Rv8A8plcQqfABmkIFWryvQ7mTL5FcQ/exec";
+const SUPABASE_URL = 'https://itdppxijisjaaxwshnym.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_kP2vtxKS7W-7peFZJKfx3g_Q_AOeyBN';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ─────────────────────────────
-// UTIL
-// ─────────────────────────────
-function showMsg(el, text){
-  el.textContent = text;
-}
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxulk3DlpsRbKobuHMM8EViC-pEYdoJFC-acV4KvIIhR9QqWJ30jEl7S7yXJsAzvN2NBQ/exec';
+</script>
 
-// ─────────────────────────────
-// LOGIN
-// ─────────────────────────────
-async function doLogin(){
-  const correo = document.getElementById("login-correo").value.trim().toLowerCase();
-  const cedula = document.getElementById("login-cedula").value.trim();
-  const msg = document.getElementById("login-msg");
-  const btn = document.getElementById("btn-login");
+<script>
+let currentUser = null;
 
-  if(!correo || !cedula){
-    return showMsg(msg, "Completa los datos");
-  }
+/* ═══════════════════════════════════════
+🔐 AUTENTICADOR 5 DÍGITOS (NUEVO)
+═══════════════════════════════════════ */
 
-  btn.disabled = true;
-  btn.textContent = "Verificando...";
+const AUTH_CODE_STATE = {
+  code: '',
+  lastUpdate: 0
+};
 
-  try{
-    const res = await fetch(APPS_SCRIPT_URL + `?action=login&correo=${correo}&cedula=${cedula}`);
+async function fetchAuthCode() {
+  try {
+    const res = await fetch(`${APPS_SCRIPT_URL}?action=getCode`);
     const data = await res.json();
 
-    if(!data.ok){
-      showMsg(msg, "Credenciales incorrectas");
-      btn.disabled = false;
-      btn.textContent = "Ingresar";
-      return;
+    if (data?.ok) {
+      AUTH_CODE_STATE.code = String(data.code || '')
+        .replace(/\D/g,'')   // solo números
+        .slice(0,5);         // SOLO 5 DIGITOS
+
+      AUTH_CODE_STATE.lastUpdate = Date.now();
+
+      console.log('🔐 Código actualizado:', AUTH_CODE_STATE.code);
     }
-
-    // 🔐 BLOQUEO POR CÓDIGO
-    const ok = await showCodeModal();
-    if(!ok){
-      btn.disabled = false;
-      btn.textContent = "Ingresar";
-      return;
-    }
-
-    enterDashboard(data.employee);
-
-  }catch(e){
-    showMsg(msg, "Error de conexión");
-    btn.disabled = false;
-    btn.textContent = "Ingresar";
+  } catch (e) {
+    console.warn('Error código auth:', e.message);
   }
 }
 
-// ─────────────────────────────
-// MODAL CÓDIGO
-// ─────────────────────────────
-function showCodeModal(){
-  return new Promise(resolve => {
+// actualizar cada 30 segundos
+setInterval(fetchAuthCode, 30000);
+fetchAuthCode();
 
-    const ov = document.createElement("div");
-    ov.id = "code-ov";
+/* ═══════════════════════════════════════ */
 
-    ov.innerHTML = `
-      <div id="code-box">
-        <h3>🔐 Código de acceso</h3>
-        <p style="font-size:12px;opacity:0.7">Solicítalo al supervisor</p>
+async function doLogin(){
+  const correo = document.getElementById('login-correo').value;
+  const cedula = document.getElementById('login-cedula').value;
 
-        <input id="code-input" maxlength="5" placeholder="•••••"/>
+  const { data } = await sb
+    .from('employees')
+    .select('*')
+    .eq('correo', correo)
+    .eq('cedula', cedula)
+    .single();
 
-        <div id="timer" style="margin-top:10px;color:#3b82f6">60s</div>
-
-        <button onclick="verifyCode()">Validar</button>
-
-        <div id="code-msg" style="margin-top:10px;font-size:12px;color:#ff6b6b"></div>
-      </div>
-    `;
-
-    document.body.appendChild(ov);
-
-    let time = 60;
-    const timer = ov.querySelector("#timer");
-
-    const interval = setInterval(()=>{
-      time--;
-      timer.textContent = time + "s";
-      if(time <= 0) time = 60;
-    },1000);
-
-    window.verifyCode = async function(){
-
-      const code = document.getElementById("code-input").value.trim();
-      const msg = document.getElementById("code-msg");
-
-      if(code.length !== 5){
-        msg.textContent = "Código inválido";
-        return;
-      }
-
-      try{
-        const res = await fetch(APPS_SCRIPT_URL + `?action=validateCode&code=${code}`);
-        const data = await res.json();
-
-        if(data.ok && data.valid){
-          clearInterval(interval);
-          ov.remove();
-          resolve(true);
-        }else{
-          msg.textContent = "Código incorrecto";
-        }
-
-      }catch(e){
-        msg.textContent = "Error validando";
-      }
-    };
-  });
+  if(data){
+    currentUser = data;
+    document.getElementById('view-auth').style.display='none';
+    document.getElementById('view-dashboard').style.display='block';
+  }
 }
 
-// ─────────────────────────────
-// DASHBOARD (placeholder)
-// ─────────────────────────────
-function enterDashboard(user){
-  document.body.innerHTML = `
-    <div style="text-align:center">
-      <h1>Bienvenido ${user.name}</h1>
-      <p>Acceso autorizado ✔</p>
-    </div>
-  `;
+/* ═══════════════════════════════════════
+SYNC A SHEETS (MODIFICADO)
+═══════════════════════════════════════ */
+
+async function syncToSheets(data) {
+  try {
+    const params = new URLSearchParams({
+      action: 'writeLog',
+
+      // 🔐 NUEVO
+      code: AUTH_CODE_STATE.code,
+
+      ...data
+    });
+
+    const url = `${APPS_SCRIPT_URL}?${params.toString()}`;
+    const res = await fetch(url);
+    const json = await res.json();
+
+    if (!json.ok) console.warn(json.error);
+  } catch(e){
+    console.warn('sync error:', e.message);
+  }
 }
+
 </script>
 
 </body>
