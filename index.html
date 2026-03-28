@@ -323,7 +323,7 @@
   };
 
   // ← Pega aquí el URL de despliegue de tu Apps Script (respaldo)
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzSpLRJ7aU_jtYGlJtqQTZ5flKq0B7KoP7z0K9zCTK512FTqvlPd_mI7devO9dFkS-ZxQ/exec';
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxulk3DlpsRbKobuHMM8EViC-pEYdoJFC-acV4KvIIhR9QqWJ30jEl7S7yXJsAzvN2NBQ/exec';
 </script>
 
 <script>
@@ -856,75 +856,53 @@ async function makeJWT(payload, pemKey) {
 async function syncToSheets(data) {
   try {
     const token = await getGoogleToken();
+
     if (!token) {
-      console.warn('No Google token available, trying Apps Script fallback');
-      // Fallback to Apps Script
-      const params = new URLSearchParams({ action: 'writeLog' });
-      const url = `${APPS_SCRIPT_URL}?${params.toString()}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      const json = await res.json();
-      if (!json.ok) console.warn('Apps Script writeLog error:', json.error);
-      else console.log('Apps Script sync OK, fila:', json.row);
+      // Fallback: Apps Script
+      try {
+        const params = new URLSearchParams({ action: 'writeLog', ...data });
+        await fetch(`${APPS_SCRIPT_URL}?${params.toString()}`);
+      } catch(e2) { console.warn('Apps Script fallback failed:', e2.message); }
       return;
     }
 
-    // Get current data to find next empty row
-    const rangeEnc = encodeURIComponent(`${SHEET_NAME}!H:R`);
-    const res = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${rangeEnc}`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    let nextRow = 2; // Start at row 2 (row 1 is header)
-    if (res.ok) {
-      const sheetData = await res.json();
-      const values = sheetData.values || [];
-      nextRow = values.length + 2; // +2 because values is 0-indexed and we start at row 2
-    }
-
-    // Prepare row data matching columns H:R
-    // Fecha, Semana, Empleado, Cedula, Area, Tipo, Hora, Tarde, Min Tarde, Mensaje / Nota
+    // Build row — columns H through Q (10 cols)
+    // H=Fecha | I=Semana | J=Empleado | K=Cedula | L=Area | M=Tipo | N=Hora | O=Tarde | P=Min Tarde | Q=Mensaje
     const now = new Date();
     const weekNum = getISOWeek(now);
-    const tardeVal = data.estado === 'tarde' ? 'SÍ' : data.estado === 'tolerancia' ? 'TOLERANCIA' : data.estado === 'salida' || data.estado === 'anticipada' ? data.tipo.toUpperCase() : 'NO';
+    const estadoLow = (data.estado || '').toLowerCase();
+    const tardeVal = estadoLow === 'tarde'       ? 'SÍ'
+                   : estadoLow === 'tolerancia'  ? 'TOLERANCIA'
+                   : estadoLow === 'salida' || estadoLow === 'anticipada' ? (data.tipo||'').toUpperCase()
+                   : 'NO';
 
     const rowData = [
-      data.fecha,                    // H - Fecha
-      String(weekNum),               // I - Semana
-      data.empleado,                 // J - Empleado
-      String(data.cedula),           // K - Cedula
-      data.area || '',               // L - Area
-      data.tipo.toUpperCase(),       // M - Tipo
-      data.hora,                     // N - Hora
-      tardeVal,                      // O - Tarde
-      String(data.minTarde || ''),   // P - Min Tarde
-      data.mensaje || ''             // Q - Mensaje / Nota
+      data.fecha,                          // H
+      String(weekNum),                     // I
+      data.empleado   || '',               // J
+      String(data.cedula || ''),           // K
+      data.area       || '',               // L
+      (data.tipo      || '').toUpperCase(),// M
+      data.hora       || '',               // N
+      tardeVal,                            // O
+      String(data.minTarde || 0),          // P
+      data.mensaje    || ''                // Q
     ];
 
-    // Append row using batchUpdate
+    // Use append — Sheets API finds the first empty row automatically
+    const rangeEnc = encodeURIComponent(`${SHEET_NAME}!H:Q`);
     const writeRes = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${rangeEnc}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
       {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          range: `${SHEET_NAME}!H${nextRow}:R${nextRow}`,
-          values: [rowData]
-        })
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: [rowData] })
       }
     );
 
     if (writeRes.ok) {
       const result = await writeRes.json();
-      console.log('Sheets sync OK, updatedRange:', result.updates?.updatedRange);
-      toast('Sincronizado con Google Sheets ✓', 'success');
+      console.log('Sheets sync OK:', result.updates?.updatedRange);
     } else {
       const errText = await writeRes.text();
       console.warn('Sheets write error:', writeRes.status, errText);
