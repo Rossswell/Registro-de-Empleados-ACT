@@ -652,8 +652,46 @@ async function loadTodayStatus(empId) {
   const btnE = document.getElementById('btn-entrada');
   const btnS = document.getElementById('btn-salida');
 
-  const entrada = data?.find(r => r.tipo === 'entrada');
-  const salida  = data?.find(r => r.tipo === 'salida');
+  const entrada  = data?.find(r => r.tipo === 'entrada');
+  const salida   = data?.find(r => r.tipo === 'salida');
+  const libreLog = data?.find(r => r.tipo === 'libre');
+
+  // ── Día libre: block everything ──
+  if (libreLog) {
+    const msg = libreLog.mensaje || '';
+    const isDayOff = msg.includes('DÍA LIBRE');
+    if (isDayOff) {
+      dot.className = 's-dot';
+      txt.textContent = '📅 Día libre registrado';
+      btnE.disabled = btnS.disabled = true;
+      clearInterval(elapsedInterval);
+      document.getElementById('elapsed-wrap').style.display = 'none';
+      hideBlockBanner();
+      showBlockBanner('📅 Día libre',
+        `Tienes el día libre hoy. Motivo: <strong>${msg.replace('DÍA LIBRE: ','')}</strong>`);
+      const b = document.getElementById('block-banner');
+      b.style.background  = 'rgba(56,189,248,0.06)';
+      b.style.borderColor = 'rgba(56,189,248,0.2)';
+      b.querySelector('.bt').style.color = 'var(--accent)';
+      b.querySelector('.bs').style.color = 'rgba(56,189,248,0.65)';
+      return;
+    }
+    // Horas libres: show banner, pause elapsed if active
+    const timeMatch = msg.match(/HORA LIBRE (\d+:\d+)-(\d+:\d+)/);
+    if (timeMatch) {
+      const now = new Date();
+      const [hFrom, mFrom] = timeMatch[1].split(':').map(Number);
+      const [hTo,   mTo]   = timeMatch[2].split(':').map(Number);
+      const fromMs = new Date(now); fromMs.setHours(hFrom, mFrom, 0, 0);
+      const toMs   = new Date(now); toMs.setHours(hTo, mTo, 0, 0);
+      if (now >= fromMs && now <= toMs) {
+        // Currently in free time window — pause elapsed
+        clearInterval(elapsedInterval);
+        const freeMotivo = msg.includes(': ') ? msg.split(': ').slice(1).join(': ') : '';
+        showFreeTimeBanner(timeMatch[1], timeMatch[2], freeMotivo);
+      }
+    }
+  }
 
   if (entrada && salida) {
     dot.className = 's-dot';
@@ -723,6 +761,21 @@ function showLateAlert(lateMin, isTolerance) {
     banner.querySelector('.lb-sub').style.color   = 'rgba(255,171,0,0.7)';
   }
   banner.style.display = 'flex';
+}
+
+function showFreeTimeBanner(desde, hasta, motivo) {
+  const banner = document.getElementById('late-banner');
+  document.getElementById('late-title').textContent = `⏱ Hora libre activa — ${desde} a ${hasta}`;
+  document.getElementById('late-sub').innerHTML =
+    `El tiempo trabajado está pausado. ${motivo ? 'Motivo: <strong>' + motivo + '</strong>' : ''}`;
+  banner.style.background  = 'rgba(56,189,248,0.08)';
+  banner.style.borderColor = 'rgba(56,189,248,0.3)';
+  banner.querySelector('.lb-title').style.color = 'var(--accent)';
+  banner.querySelector('.lb-sub').style.color   = 'rgba(56,189,248,0.7)';
+  banner.style.display = 'flex';
+  // Pause elapsed timer display
+  document.getElementById('elapsed-wrap').style.display = 'block';
+  document.getElementById('elapsed').textContent = '⏸ Pausado';
 }
 
 async function markTime(tipo, confirmed = false, exitMsg = null) {
