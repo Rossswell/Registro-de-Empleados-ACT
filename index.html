@@ -871,9 +871,10 @@ async function syncToSheets(data) {
     const now = new Date();
     const weekNum = getISOWeek(now);
     const estadoLow = (data.estado || '').toLowerCase();
-    const tardeVal = estadoLow === 'tarde'       ? 'SÍ'
-                   : estadoLow === 'tolerancia'  ? 'TOLERANCIA'
-                   : estadoLow === 'salida' || estadoLow === 'anticipada' ? (data.tipo||'').toUpperCase()
+    const tardeVal = estadoLow === 'tarde'      ? 'SÍ'
+                   : estadoLow === 'tolerancia' ? 'TOLERANCIA'
+                   : estadoLow === 'anticipada' ? 'Salida anticipada'
+                   : estadoLow === 'salida'     ? 'NO'
                    : 'NO';
 
     const rowData = [
@@ -890,13 +891,36 @@ async function syncToSheets(data) {
     ];
 
     // Use append — Sheets API finds the first empty row automatically
-    const rangeEnc = encodeURIComponent(`${SHEET_NAME}!H:Q`);
+    // Find the first truly empty row in H:Q (after header row 1)
+    // We use PUT with a specific row instead of append to avoid INSERT_ROWS pushing the A-F block
+    const readEnc = encodeURIComponent(`${SHEET_NAME}!H:H`);
+    const readRes = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${readEnc}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    let nextRow = 2;
+    if (readRes.ok) {
+      const rd = await readRes.json();
+      // Count filled rows in col H (index 0), start from row 2 (skip header)
+      const vals = rd.values || [];
+      // vals[0] is row1 (header), vals[1] is row2, etc.
+      // Find last filled row in H and go one below
+      let lastFilled = 1; // row index (1-based), start at header
+      for (let i = 1; i < vals.length; i++) {
+        if (vals[i] && vals[i][0] && String(vals[i][0]).trim() !== '') {
+          lastFilled = i + 1; // +1 because vals is 0-indexed
+        }
+      }
+      nextRow = lastFilled + 1;
+    }
+
+    const rowRange = encodeURIComponent(`${SHEET_NAME}!H${nextRow}:Q${nextRow}`);
     const writeRes = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${rangeEnc}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${rowRange}?valueInputOption=RAW`,
       {
-        method: 'POST',
+        method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values: [rowData] })
+        body: JSON.stringify({ values: [rowData], range: `${SHEET_NAME}!H${nextRow}:Q${nextRow}` })
       }
     );
 
@@ -918,6 +942,48 @@ function getISOWeek(d) {
   date.setUTCDate(date.getUTCDate() + 4 - dayNum);
   const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
   return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+}
+
+// Find the last row in Sheets that matches today + cedula + tipo, update col Q (Mensaje)
+async function updateLastSheetMensaje(mensaje, tipo) {
+  const token = await getGoogleToken();
+  if (!token) return;
+
+  const readEnc = encodeURIComponent(`${SHEET_NAME}!H:Q`);
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${readEnc}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) return;
+
+  const data = await res.json();
+  const rows = data.values || [];
+  const cedula = String(currentUser?.cedula || '');
+  const today  = (() => { const n=new Date(); return `${String(n.getDate()).padStart(2,'0')}/${String(n.getMonth()+1).padStart(2,'0')}/${n.getFullYear()}`; })();
+
+  // rows[0] = header (row 1), rows[1] = row 2, etc.
+  // Find last matching row (H=fecha, K=cedula, M=tipo)
+  let targetSheetRow = -1;
+  for (let i = rows.length - 1; i >= 1; i--) {
+    const r = rows[i];
+    // H(0)=Fecha, K(3)=Cedula, M(5)=Tipo
+    if ((r[0]||'').trim() === today && (r[3]||'').trim() === cedula && (r[5]||'').trim() === tipo) {
+      targetSheetRow = i + 1; // +1 because rows is 0-indexed, sheet is 1-indexed
+      break;
+    }
+  }
+  if (targetSheetRow < 0) return;
+
+  // Update col Q (index 9 = column Q) = Mensaje
+  const msgRange = encodeURIComponent(`${SHEET_NAME}!Q${targetSheetRow}`);
+  await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${msgRange}?valueInputOption=RAW`,
+    {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: [[mensaje]] })
+    }
+  );
 }
 
 function showEntryModal({ estado, lateMin, time }) {
@@ -974,12 +1040,15 @@ async function confirmEntryModal(defaultMsg, hasTA) {
     const typed = ta ? ta.value.trim() : '';
     if (typed) mensaje = `${defaultMsg} ${typed}`;
     try {
+      // Update Supabase
       const today = new Date().toISOString().slice(0,10);
       const { data } = await sb.from('logs').select('id')
         .eq('employee_id', currentUser.id).eq('tipo','entrada')
         .gte('timestamp', today + 'T00:00:00').order('timestamp',{ascending:false}).limit(1);
       if (data?.[0]) await sb.from('logs').update({ mensaje }).eq('id', data[0].id);
     } catch {}
+    // Update Sheets col Q for the most recent entrada row
+    updateLastSheetMensaje(mensaje, 'ENTRADA').catch(e => console.warn('Sheet msg update:', e.message));
   }
   document.getElementById('entry-modal-ov').style.display = 'none';
   toast('Entrada registrada ✓', 'success');
