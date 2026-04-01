@@ -637,14 +637,23 @@ function hideBlockBanner() {
 }
 
 async function loadTodayStatus(empId) {
-  const today = new Date().toISOString().slice(0,10);
+  // Use local date (not UTC) to avoid timezone mismatch (e.g. VET = UTC-4)
+  const _now = new Date();
+  const localDateStr = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
+  // Build UTC range that covers the full local day (local 00:00 → 23:59 in UTC)
+  const tzOffsetMs  = _now.getTimezoneOffset() * 60000;
+  const localStart  = new Date(_now.getFullYear(), _now.getMonth(), _now.getDate(), 0, 0, 0);
+  const localEnd    = new Date(_now.getFullYear(), _now.getMonth(), _now.getDate(), 23, 59, 59);
+  const utcStart    = new Date(localStart.getTime() + tzOffsetMs).toISOString().slice(0,19);
+  const utcEnd      = new Date(localEnd.getTime()   + tzOffsetMs).toISOString().slice(0,19);
+  const today       = localDateStr;
 
   const { data } = await sb
     .from('logs')
     .select('*')
     .eq('employee_id', empId)
-    .gte('timestamp', today + 'T00:00:00')
-    .lte('timestamp', today + 'T23:59:59')
+    .gte('timestamp', utcStart)
+    .lte('timestamp', utcEnd)
     .order('timestamp', { ascending: true });
 
   const dot  = document.getElementById('s-dot');
@@ -1158,7 +1167,7 @@ async function loadHistory(empId) {
     .from('logs').select('*')
     .eq('employee_id', empId)
     .order('timestamp', { ascending: false })
-    .limit(14);
+    .limit(20);
 
   if (!data || !data.length) {
     list.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;text-align:center;padding:18px">Sin registros aún</div>';
