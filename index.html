@@ -835,6 +835,15 @@ async function markTime(tipo, confirmed = false, exitMsg = null) {
     const tzOffset = -now.getTimezoneOffset();
     const horaLocal = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     const fechaLocal = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()}`;
+    // Build the default mensaje BEFORE syncing to Sheets so it's always written
+    let mensajeParaSheets = exitMsg || '';
+    if (tipo === 'entrada' && !exitMsg) {
+      // Match the same logic as showEntryModal's defaultMsg
+      if (estado === 'tarde')       mensajeParaSheets = 'Entrada fuera de horario / tarde.';
+      else if (estado === 'tolerancia') mensajeParaSheets = 'Llegada a hora tolerada. Sin novedad.';
+      else                          mensajeParaSheets = 'Llegada a hora. Sin novedad.';
+    }
+
     syncToSheets({
       fecha:    fechaLocal,
       empleado: currentUser.nombre,
@@ -844,7 +853,7 @@ async function markTime(tipo, confirmed = false, exitMsg = null) {
       hora:     horaLocal,
       estado:   estado,
       minTarde: lateMin,
-      mensaje:  exitMsg || ''
+      mensaje:  mensajeParaSheets
     });
 
     await loadTodayStatus(currentUser.id);
@@ -1098,20 +1107,29 @@ function showEntryModal({ estado, lateMin, time }) {
 async function confirmEntryModal(defaultMsg, hasTA) {
   let mensaje = defaultMsg;
   if (hasTA) {
+    // User may have typed an extra note — append it
     const ta = document.getElementById('entry-note');
     const typed = ta ? ta.value.trim() : '';
     if (typed) mensaje = `${defaultMsg} ${typed}`;
+
+    // Update Supabase with the full message (includes user note)
     try {
-      // Update Supabase
-      const today = new Date().toISOString().slice(0,10);
+      const _n = new Date();
+      const utcS = new Date(_n.getFullYear(), _n.getMonth(), _n.getDate(), 0, 0, 0);
+      const utcE = new Date(_n.getFullYear(), _n.getMonth(), _n.getDate(), 23, 59, 59);
+      const off  = _n.getTimezoneOffset() * 60000;
       const { data } = await sb.from('logs').select('id')
         .eq('employee_id', currentUser.id).eq('tipo','entrada')
-        .gte('timestamp', today + 'T00:00:00').order('timestamp',{ascending:false}).limit(1);
+        .gte('timestamp', new Date(utcS.getTime() + off).toISOString().slice(0,19))
+        .order('timestamp', {ascending:false}).limit(1);
       if (data?.[0]) await sb.from('logs').update({ mensaje }).eq('id', data[0].id);
     } catch {}
-    // Update Sheets col Q for the most recent entrada row
+
+    // Update Sheets with the full message (user may have added extra note to tardanza)
     updateLastSheetMensaje(mensaje, 'ENTRADA').catch(e => console.warn('Sheet msg update:', e.message));
   }
+  // For non-tardanza cases, the message was already sent to Sheets via syncToSheets above.
+  // No additional update needed unless user typed something extra (only tardanza has the textarea).
   document.getElementById('entry-modal-ov').style.display = 'none';
   toast('Entrada registrada ✓', 'success');
 }
