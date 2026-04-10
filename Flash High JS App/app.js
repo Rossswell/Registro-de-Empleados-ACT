@@ -453,11 +453,13 @@ async function addEmployee() {
     if (error) throw error
 
     // 2. Google Sheets
+    console.log('[addEmployee] Intentando guardar en Sheets:', { nombre, cedula, correo })
     try {
       await appendEmployeeToSheet({ nombre, cedula, telefono, correo, area, inicio, cumple })
+      console.log('[addEmployee] Guardado en Sheets exitosamente')
     } catch(sheetErr) {
-      console.warn('Sheet sync:', sheetErr.message)
-      toast('Guardado en Supabase. Error en Sheets: ' + sheetErr.message, 'warning')
+      console.error('[addEmployee] Error en Sheets:', sheetErr.message)
+      toast('⚠️ Guardado en Supabase pero NO en Sheets: ' + sheetErr.message, 'warning')
     }
 
     // 3. Cerrar calendarios y limpiar listeners
@@ -518,7 +520,8 @@ async function deleteEmployee(id, name) {
 // ════════════════════════════════════════════════════
 async function appendEmployeeToSheet(emp) {
   const SHEET_ID = window.FH_CONFIG.SPREADSHEET_ID
-  const SNAME    = window.FH_CONFIG.SHEET_EMP_NAME || '👤 EMPLEADOS FLASH HIGH'
+  // Usar el nombre exacto de la hoja - sin espacio después del emoji
+  const SNAME    = '👤EMPLEADOS FLASH HIGH'
 
   const fullName = `${emp.nombre} ${emp.apellido||''}`.trim()
 
@@ -541,10 +544,28 @@ async function appendEmployeeToSheet(emp) {
   ]
 
   const token = await getGoogleToken()
-  if (!token) { console.warn('No Google token'); return }
+  if (!token) {
+    console.error('[SheetEmp] No Google token available')
+    throw new Error('No se pudo obtener token de Google para empleados')
+  }
+
+  // Primero verificar que la hoja existe leyendo metadata
+  const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=sheets(properties(title))`
+  const metaRes = await fetch(metaUrl, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  if (!metaRes.ok) {
+    throw new Error('No se pudo verificar la hoja: ' + metaRes.status)
+  }
+  const metaData = await metaRes.json()
+  const sheetExists = metaData.sheets?.some(s => s.properties.title === SNAME)
+  if (!sheetExists) {
+    console.error('[SheetEmp] Hoja no encontrada:', SNAME)
+    console.log('Hojas disponibles:', metaData.sheets?.map(s => s.properties.title))
+    throw new Error(`La hoja "${SNAME}" no existe en el spreadsheet`)
+  }
 
   const range = encodeURIComponent(`'${SNAME}'!A:G`)
-  // RAW para no heredar formato de celdas vecinas
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`
 
   const res = await fetch(url, {
@@ -552,7 +573,12 @@ async function appendEmployeeToSheet(emp) {
     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ values: [row] })
   })
-  if (!res.ok) throw new Error(`Sheets ${res.status}: ${await res.text()}`)
+  if (!res.ok) {
+    const errText = await res.text()
+    console.error('[SheetEmp] Error al escribir:', res.status, errText)
+    throw new Error(`Sheets ${res.status}: ${errText}`)
+  }
+  console.log('[SheetEmp] Empleado agregado correctamente:', fullName)
 }
 
 async function deleteEmployeeFromSheet(emp) {
