@@ -821,11 +821,19 @@ async function markTime(tipo, confirmed = false, exitMsg = null) {
       if (now < schedOut) estado = 'anticipada';
     }
 
+    // Build the default mensaje BEFORE inserting into Supabase and syncing to Sheets
+    let mensajeParaSheets = exitMsg || '';
+    if (tipo === 'entrada' && !exitMsg) {
+      if (estado === 'tarde')       mensajeParaSheets = 'Entrada fuera de horario / tarde.';
+      else if (estado === 'tolerancia') mensajeParaSheets = 'Llegada a la hora tolerada. Sin novedad.';
+      else                          mensajeParaSheets = 'Entrada puntual.';
+    }
+
     const ts  = now.toISOString();
     const { error } = await sb.from('logs').insert({
       employee_id: currentUser.id,
       tipo, estado, late_min: lateMin,
-      mensaje: exitMsg || null,
+      mensaje: mensajeParaSheets || null,
       timestamp: ts
     });
 
@@ -835,14 +843,6 @@ async function markTime(tipo, confirmed = false, exitMsg = null) {
     const tzOffset = -now.getTimezoneOffset();
     const horaLocal = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     const fechaLocal = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()}`;
-    // Build the default mensaje BEFORE syncing to Sheets so it's always written
-    let mensajeParaSheets = exitMsg || '';
-    if (tipo === 'entrada' && !exitMsg) {
-      // Match the same logic as showEntryModal's defaultMsg
-      if (estado === 'tarde')       mensajeParaSheets = 'Entrada fuera de horario / tarde.';
-      else if (estado === 'tolerancia') mensajeParaSheets = 'Llegada a hora tolerada. Sin novedad.';
-      else                          mensajeParaSheets = 'Llegada a hora. Sin novedad.';
-    }
 
     syncToSheets({
       fecha:    fechaLocal,
@@ -1068,10 +1068,10 @@ function showEntryModal({ estado, lateMin, time }) {
     : isTol
     ? { color:'#4fc3f7', bg:'rgba(0,212,255,0.07)', icon:'🟡',
         title:`Tolerancia (+${lateStr})`, showTA: false,
-        defaultMsg: 'Llegada a hora tolerada. Sin novedad.' }
+        defaultMsg: 'Llegada a la hora tolerada. Sin novedad.' }
     : { color:'var(--success)', bg:'rgba(0,230,118,0.08)', icon:'✅',
         title:'Entrada registrada', showTA: false,
-        defaultMsg: 'Llegada a hora. Sin novedad.' };
+        defaultMsg: 'Entrada puntual.' };
 
   let ov = document.getElementById('entry-modal-ov');
   if (!ov) {
