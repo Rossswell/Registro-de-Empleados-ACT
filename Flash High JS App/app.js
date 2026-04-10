@@ -133,7 +133,7 @@ async function startSheetsToSupabaseSync() {
       if (!token) return
 
       const SHEET_ID = window.FH_CONFIG.SPREADSHEET_ID
-      const SNAME    = window.FH_CONFIG.SHEET_EMP_NAME || '👤 NOMINA'
+      const SNAME    = window.FH_CONFIG.SHEET_EMP_NAME || '👤 EMPLEADOS FLASH HIGH'
 
       // Read employee cedulas from Sheets (col B = cédula, starting row 2)
       const rangeEnc = encodeURIComponent(`'${SNAME}'!B:B`)
@@ -518,7 +518,7 @@ async function deleteEmployee(id, name) {
 // ════════════════════════════════════════════════════
 async function appendEmployeeToSheet(emp) {
   const SHEET_ID = window.FH_CONFIG.SPREADSHEET_ID
-  const SNAME    = window.FH_CONFIG.SHEET_EMP_NAME || '👤 NOMINA'
+  const SNAME    = window.FH_CONFIG.SHEET_EMP_NAME || '👤 EMPLEADOS FLASH HIGH'
 
   const fullName = `${emp.nombre} ${emp.apellido||''}`.trim()
 
@@ -557,7 +557,7 @@ async function appendEmployeeToSheet(emp) {
 
 async function deleteEmployeeFromSheet(emp) {
   const SHEET_ID = window.FH_CONFIG.SPREADSHEET_ID
-  const SNAME    = window.FH_CONFIG.SHEET_EMP_NAME || '👤 NOMINA'
+  const SNAME    = window.FH_CONFIG.SHEET_EMP_NAME || '👤 EMPLEADOS FLASH HIGH'
   const token    = await getGoogleToken()
   if (!token) throw new Error('No Google token')
 

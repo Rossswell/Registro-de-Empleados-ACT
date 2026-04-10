@@ -12,7 +12,7 @@ window.FH_CONFIG = {
   // ── Google Sheets ─────────────────────
   SPREADSHEET_ID: '1O35ZWq2yEAW-5FOJsby2Kszo6WP3_0nqVGp4yd0q4Lk',
   SHEET_NAME: '⌛HORARIOS',
-  SHEET_EMP_NAME: '👤NOMINA',
+  SHEET_EMP_NAME: '👤EMPLEADOS FLASH HIGH',
 
   // ── Google Service Account ────────────
   GOOGLE_CREDENTIALS: {

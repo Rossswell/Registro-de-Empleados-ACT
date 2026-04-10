@@ -6,7 +6,7 @@
 
 const SHEET_ID = '1O35ZWq2yEAW-5FOJsby2Kszo6WP3_0nqVGp4yd0q4Lk';
 
-const SHEET_EMPLOYEES  = '👤 NOMINA';
+const SHEET_EMPLOYEES  = '👤 EMPLEADOS FLASH HIGH';
 const SHEET_SCHEDULES  = '⌛HORARIOS';
 
 // ── Columnas empleados ────────────────────────────────
